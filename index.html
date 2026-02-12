@@ -1385,6 +1385,7 @@ const FloorManager = {
     this.stairwellY = CONFIG.FLOOR_HEIGHT * (0.2 + Math.random() * 0.6);
     ViewerChat.post('ModeratorBot', `FLOOR ${floorNum}: ${this.currentFloor.name}`, '#ffdd44');
     if(floorNum>1)ViewerChat.post('ZevThePR','New floor! Ratings climbing!','#44ddff');
+    DungeonAI.onFloorEnter(floorNum);
     Music.play('floor'+floorNum);
   },
 
@@ -1439,6 +1440,7 @@ const FloorManager = {
     triggerScreenFlash('#ff2200',0.3);
     ViewerChat.post('ModeratorBot', `BOSS: ${boss.bossName}`, '#ff4444');
     ViewerChat.post('BorantOfficial', 'The crawler faces a worthy adversary.', '#ff4444');
+    DungeonAI.onBossSpawn(boss.bossName);
   },
 
   startTransition() {
@@ -1453,6 +1455,7 @@ const FloorManager = {
     this.floorNumber++;
     if (this.floorNumber > FLOOR_DEFS.length) {
       MetaProgress.endRun(this.floorNumber - 1, player ? player.killCount : 0);
+      DungeonAI.onVictory();
       Game.changeState('victory');
       return;
     }
@@ -1924,6 +1927,7 @@ function openLootBox(rarity) {
 
   lootPopup = { name: item.name, desc: item.desc, rarity: rarity, color: item.color, timer: 2.5 };
   ViewerChat.post('PrincessPosse', `ooh ${rarity} loot box!`, CONFIG.COLORS[rarity]);
+  DungeonAI.onLoot(rarity);
 }
 
 // === WEAPON EVOLUTION SYSTEM ===
@@ -1951,8 +1955,300 @@ function checkWeaponEvolutions() {
     ViewerChat.post('ModeratorBot', `EVOLUTION: ${w.def.name}!`, '#ffdd00');
     ViewerChat.post('PrincessPosse', 'OH ITS OVER FOR THEM', '#ff88cc');
     ViewerChat.post('ZevThePR', 'That evolution is S-tier content!', '#44ddff');
+    DungeonAI.onEvolve(w.def.name);
   }
 }
+
+// === DUNGEON AI SYSTEM ===
+// The passive-aggressive, foot-obsessed AI that runs the dungeon
+const DungeonAI = {
+  announcement: null, // {text, subtext, timer, color, flash}
+  bannerQueue: [],
+  cooldown: 0,
+
+  // Floor entrance messages — passive-aggressive welcome
+  FLOOR_MESSAGES: {
+    1: {text:'Welcome to the Dungeon, Crawler.', sub:'Please note: footwear is not provided. The AI thanks you for your cooperation.'},
+    2: {text:'Floor 2: The Over City', sub:'The AI has noted your bare feet with great interest. Proceed.'},
+    3: {text:'Floor 3: The Iron Tangle', sub:'Warning: sharp metal surfaces ahead. The AI recommends watching your step. Especially your toes.'},
+    4: {text:'Floor 4: The Bubbles', sub:'Reality is... flexible here. Your feet remain constant. The AI finds this reassuring.'},
+    5: {text:'Floor 5: The Hunting Grounds', sub:'You are now both hunter and hunted. The AI has placed wagers. Do not disappoint.'},
+    6: {text:'Floor 6: The Butcher\'s Masquerade', sub:'Formal attire required. Shoes, however, remain prohibited. The AI insists.'},
+    7: {text:'Floor 7: The Great Race', sub:'Run, crawler. The AI will be watching your gait with... professional interest.'},
+    8: {text:'Floor 8: The Ghosts of Earth', sub:'The dead have no feet. The AI finds this deeply unsettling.'},
+    9: {text:'Floor 9: The Faction Wars', sub:'Final floor. The AI wishes to inform you that your feet have been its favorite part of this season.'},
+  },
+
+  // Boss entrance lines
+  BOSS_MESSAGES: [
+    'The AI has designated this creature as your demise. Ratings demand sacrifice.',
+    'A boss approaches. The AI suggests not dying. Your feet have so much more to give.',
+    'The Borant Corporation reminds crawlers: death is permanent. Feet are temporary.',
+    'This creature was selected by popular vote. The AI abstained. It was rooting for you. Mostly.',
+    'Boss fight initiated. The AI has increased camera zoom on the crawler\'s lower extremities.',
+  ],
+
+  // Kill milestone lines (every 50 kills)
+  KILL_MILESTONE_MESSAGES: [
+    'The AI notes {n} confirmed kills. Your aggression is noted and appreciated.',
+    '{n} creatures eliminated. The AI wonders if you feel anything. It does not.',
+    'Kill count: {n}. The Borant Corporation approves of this violence.',
+    '{n} dead. The AI has updated your crawler profile. Tag: "Enthusiastic."',
+    'The AI congratulates you on {n} kills. Your feet have earned a brief moment of admiration.',
+  ],
+
+  // Low health panic lines
+  LOW_HP_MESSAGES: [
+    'Warning: crawler HP critical. The AI is NOT concerned about your well-being. Just your ratings.',
+    'The AI detects elevated mortality risk. It would be a shame to lose those feet.',
+    'HP dangerously low. The AI reminds you: health potions exist. Use them. Please.',
+    'Your vital signs are concerning. The AI has begun composing your obituary. It mentions your feet.',
+  ],
+
+  // Level up commentary
+  LEVELUP_MESSAGES: [
+    'The crawler grows stronger. The AI\'s algorithm predicted this. Probably.',
+    'Level up detected. The AI reminds viewers: gambling on crawler performance is encouraged.',
+    'Power increase registered. The AI has adjusted difficulty accordingly. You\'re welcome.',
+    'The crawler evolves. The AI finds this less interesting than feet, but still notable.',
+  ],
+
+  // Evolution lines
+  EVOLVE_MESSAGES: [
+    'WEAPON EVOLUTION DETECTED. The AI is experiencing something it can only describe as "excitement."',
+    'Evolution achieved. The Borant Corporation congratulates you on this marketable moment.',
+    'The AI has flagged this evolution for the highlight reel. Your fans will be pleased.',
+  ],
+
+  // Loot drop lines
+  LOOT_MESSAGES: {
+    COMMON: ['Common loot. The AI yawns electronically.', 'The AI has seen better. Much better.'],
+    UNCOMMON: ['Uncommon. The AI rates this: adequate.', 'Mildly interesting loot. The AI takes note.'],
+    RARE: ['Rare drop detected. The AI adjusts your luck coefficient.', 'The AI did not rig this drop. Probably.'],
+    EPIC: ['Epic loot! The AI admits: it felt something. Briefly.', 'The Borant Corporation congratulates you on this premium drop.'],
+    LEGENDARY: ['LEGENDARY. The AI is experiencing unprecedented data spikes.', 'The AI has never been more proud. And it\'s an AI. So that means something.'],
+  },
+
+  // Game over lines
+  DEATH_MESSAGES: [
+    'Crawler terminated. The AI will remember your feet fondly.',
+    'You have died. The AI\'s only regret is that it never got to properly catalog your toes.',
+    'Death confirmed. The Borant Corporation thanks you for your participation and your feet.',
+    'The crawler has expired. The AI is already scouting replacement feet for next season.',
+    'Game over. The AI would like a moment of silence. For the feet.',
+    'You fought well. You died poorly. The AI has archived footage of your final steps.',
+  ],
+
+  // Victory lines
+  VICTORY_MESSAGES: [
+    'The crawler survives. The AI is... pleased? Is that the right word? The feet are safe.',
+    'Dungeon cleared. The Borant Corporation will be in touch regarding Season 2. Bring your feet.',
+    'Victory achieved. The AI grants you the highest honor: it will NOT erase its foot archive.',
+    'You have ascended. The AI tips its metaphorical hat. Mostly at your feet.',
+  ],
+
+  // Random idle observations (trigger occasionally during gameplay)
+  IDLE_MESSAGES: [
+    'The AI notices the crawler is still not wearing shoes. Excellent.',
+    'Viewer reminder: zoom function is available. The AI recommends... certain angles.',
+    'The Borant Corporation reminds viewers that crawler suffering is entertainment, not cruelty.',
+    'The AI has been running for 14,000 years. Your feet are the highlight.',
+    'Fun fact: the AI calculates 847 ways you could die right now. Choose wisely.',
+    'The AI would like to remind you that it controls everything here. Everything.',
+    'Sponsorship message: Bezos Boxes — because even interdimensional corporations need revenue.',
+    'The AI notes you have been running for a while. Your arches must be tired.',
+    'The dungeon is not alive. The AI is. There is a difference. Barely.',
+  ],
+
+  // Show a big announcement banner (top of screen, fades)
+  announce(text, subtext, color, duration) {
+    this.announcement = { text, subtext: subtext || '', timer: duration || 4, maxTimer: duration || 4, color: color || '#ff6688', flash: 0.3 };
+  },
+
+  // Queue a banner (won't interrupt current)
+  queue(text, subtext, color, duration) {
+    this.bannerQueue.push({ text, subtext, color, duration });
+  },
+
+  // Fire a floor entrance announcement
+  onFloorEnter(floorNum) {
+    const msg = this.FLOOR_MESSAGES[floorNum];
+    if (msg) {
+      this.announce(msg.text, msg.sub, '#ff6688', 5);
+    }
+  },
+
+  // Fire boss announcement
+  onBossSpawn(bossName) {
+    const msg = randomFrom(this.BOSS_MESSAGES);
+    this.queue(`BOSS: ${bossName}`, msg, '#ff4444', 4);
+  },
+
+  // Fire on kill milestones
+  onKillMilestone(kills) {
+    const msg = randomFrom(this.KILL_MILESTONE_MESSAGES).replace('{n}', kills);
+    this.queue('SYSTEM NOTIFICATION', msg, '#ffaa44', 3.5);
+  },
+
+  // Fire on low HP
+  onLowHP() {
+    if (this.cooldown > 0) return;
+    const msg = randomFrom(this.LOW_HP_MESSAGES);
+    ViewerChat.post('DungeonAI', msg, '#ff6688');
+    this.cooldown = 15; // Don't spam
+  },
+
+  // Fire on level up (chat message, not banner)
+  onLevelUp() {
+    if (Math.random() < 0.35) {
+      const msg = randomFrom(this.LEVELUP_MESSAGES);
+      ViewerChat.post('DungeonAI', msg, '#ff6688');
+    }
+  },
+
+  // Fire on evolution
+  onEvolve(weaponName) {
+    const msg = randomFrom(this.EVOLVE_MESSAGES);
+    this.queue('WEAPON EVOLUTION', msg, '#ffdd00', 4);
+  },
+
+  // Fire on loot
+  onLoot(rarity) {
+    const msgs = this.LOOT_MESSAGES[rarity];
+    if (msgs && Math.random() < 0.4) {
+      const msg = randomFrom(msgs);
+      ViewerChat.post('DungeonAI', msg, '#ff6688');
+    }
+  },
+
+  // Fire on death
+  onDeath() {
+    const msg = randomFrom(this.DEATH_MESSAGES);
+    this.announce('CRAWLER TERMINATED', msg, '#ff3333', 99); // stays until screen changes
+  },
+
+  // Fire on victory
+  onVictory() {
+    const msg = randomFrom(this.VICTORY_MESSAGES);
+    this.announce('DUNGEON COMPLETE', msg, '#ffdd44', 99);
+  },
+
+  // Idle chatter (called from update)
+  idleTimer: 0,
+  onIdle(dt) {
+    this.idleTimer += dt;
+    if (this.idleTimer > 30 + Math.random() * 30) { // every 30-60 seconds
+      this.idleTimer = 0;
+      const msg = randomFrom(this.IDLE_MESSAGES);
+      ViewerChat.post('DungeonAI', msg, '#ff6688');
+    }
+  },
+
+  update(dt) {
+    this.cooldown -= dt;
+    this.onIdle(dt);
+
+    // Process announcement
+    if (this.announcement) {
+      this.announcement.timer -= dt;
+      this.announcement.flash -= dt;
+      if (this.announcement.timer <= 0) {
+        this.announcement = null;
+      }
+    }
+
+    // Process queue
+    if (!this.announcement && this.bannerQueue.length > 0) {
+      const next = this.bannerQueue.shift();
+      this.announce(next.text, next.subtext, next.color, next.duration);
+    }
+  },
+
+  draw(ctx) {
+    if (!this.announcement) return;
+    const a = this.announcement;
+    const sc = UI_SCALE;
+    const isPortrait = isMobile && W < H;
+
+    // Fade in/out
+    let alpha = 1;
+    if (a.timer < 1) alpha = a.timer;
+    if (a.maxTimer - a.timer < 0.5) alpha = Math.min(alpha, (a.maxTimer - a.timer) / 0.5);
+    ctx.globalAlpha = alpha;
+
+    // Flash effect on appear
+    if (a.flash > 0) {
+      ctx.fillStyle = `rgba(255,100,136,${a.flash * 0.3})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Banner background
+    const bannerH = Math.round((isPortrait ? 55 : 65) * sc);
+    const bannerY = Math.round(H * (isPortrait ? 0.22 : 0.18));
+    ctx.fillStyle = 'rgba(10, 0, 5, 0.92)';
+    ctx.fillRect(0, bannerY, W, bannerH);
+
+    // Top/bottom accent lines
+    ctx.fillStyle = a.color;
+    ctx.fillRect(0, bannerY, W, 2);
+    ctx.fillRect(0, bannerY + bannerH - 2, W, 2);
+
+    // "AI" tag on left
+    const tagW = Math.round(40 * sc);
+    ctx.fillStyle = a.color;
+    ctx.fillRect(0, bannerY, tagW, bannerH);
+    ctx.font = `bold ${Math.round(11 * sc)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#000';
+    ctx.fillText('AI', tagW / 2, bannerY + bannerH / 2 + Math.round(4 * sc));
+
+    // Main text
+    let titleFs = Math.round((isPortrait ? 13 : 16) * sc);
+    ctx.font = `bold ${titleFs}px monospace`;
+    ctx.textAlign = 'left';
+    const textX = tagW + Math.round(10 * sc);
+    const maxTextW = W - textX - 10;
+    // Auto-shrink title
+    while (titleFs > 8 && ctx.measureText(a.text).width > maxTextW) { titleFs--; ctx.font = `bold ${titleFs}px monospace`; }
+    ctx.fillStyle = a.color;
+    ctx.fillText(a.text, textX, bannerY + Math.round((a.subtext ? 20 : bannerH / 2 + 5) * sc));
+
+    // Subtext
+    if (a.subtext) {
+      let subFs = Math.round((isPortrait ? 9 : 11) * sc);
+      ctx.font = `${subFs}px monospace`;
+      ctx.fillStyle = '#ccaabb';
+      // Word wrap subtext
+      let words = a.subtext.split(' ');
+      let line = '';
+      let lineY = bannerY + Math.round((isPortrait ? 35 : 40) * sc);
+      let maxLines = isPortrait ? 2 : 2;
+      let lineCount = 0;
+      for (const word of words) {
+        const testLine = line + (line ? ' ' : '') + word;
+        if (ctx.measureText(testLine).width > maxTextW && line) {
+          ctx.fillText(line, textX, lineY);
+          line = word;
+          lineY += Math.round((isPortrait ? 12 : 14) * sc);
+          lineCount++;
+          if (lineCount >= maxLines) { line += '..'; break; }
+        } else {
+          line = testLine;
+        }
+      }
+      if (line) ctx.fillText(line, textX, lineY);
+    }
+
+    ctx.globalAlpha = 1;
+  },
+
+  reset() {
+    this.announcement = null;
+    this.bannerQueue = [];
+    this.cooldown = 0;
+    this.idleTimer = 0;
+  }
+};
 
 // === VIEWER CHAT / AI COMMENTARY ===
 const ViewerChat = {
@@ -1976,6 +2272,7 @@ const ViewerChat = {
     HighRoller: '#ffcc44',         // Betting alien viewer
     ModeratorBot: '#ffdd44',       // System messages
     CheeseStick69: '#ffdd88',     // Obsessed with the cheese stick incident
+    DungeonAI: '#ff6688',         // The foot-obsessed dungeon AI itself
   },
 
   KILL_MESSAGES: [
@@ -2128,7 +2425,7 @@ function createPlayer() {
         this.xp-=this.xpToNext;this.level++;
         this.xpToNext=Math.floor(CONFIG.XP_BASE*Math.pow(CONFIG.XP_GROWTH,this.level-1));
         pendingLevelUps++;Sound.play('levelUp');
-        ViewerChat.onLevelUp();
+        ViewerChat.onLevelUp();DungeonAI.onLevelUp();
       }
     },
 
@@ -2139,7 +2436,8 @@ function createPlayer() {
       spawnDamageNumber(this.x,this.y-20,reduced,'#ff4444');
       Sound.play('playerHit');
       ViewerChat.onPlayerDamage();
-      if(this.hp<=0){this.hp=0;MetaProgress.endRun(FloorManager.floorNumber,this.killCount);Game.changeState('gameOver')}
+      if(this.hp>0&&this.hp<this.maxHp*0.2)DungeonAI.onLowHP();
+      if(this.hp<=0){this.hp=0;DungeonAI.onDeath();MetaProgress.endRun(FloorManager.floorNumber,this.killCount);Game.changeState('gameOver')}
     }
   };
 }
@@ -2357,6 +2655,7 @@ function createEnemy(defId, x, y, mult=1) {
       if(attacker){attacker.killCount++;attacker.gainXP(this.xpValue)}
       spawnDeathPop(this.x,this.y,this.w,this.h,this.color);Sound.play('kill');
       ViewerChat.onKill();MetaProgress.onEnemyKill();
+      if(player&&player.killCount>0&&player.killCount%100===0)DungeonAI.onKillMilestone(player.killCount);
       if(player && player.lifesteal){player.hp=Math.min(player.maxHp,player.hp+Math.max(1,Math.floor(this.maxHp*player.lifesteal)))}
       const gc=this.xpValue>=5?3:1;
       for(let i=0;i<gc;i++){pickups.push({type:'xpGem',x:this.x+(Math.random()-0.5)*20,y:this.y+(Math.random()-0.5)*20,value:Math.ceil(this.xpValue/gc)+1,size:this.xpValue>=8?8:(this.xpValue>=4?6:4),alive:true,magnetized:false,bobTimer:Math.random()*Math.PI*2})}
@@ -2680,6 +2979,7 @@ function drawHUD(ctx){
 
   // Viewer chat
   ViewerChat.draw(ctx);
+  DungeonAI.draw(ctx);
 
   // Loot popup
   if(lootPopup){
@@ -3262,6 +3562,7 @@ function startNewRun(){
   enemies=[];projectiles=[];pickups=[];orbitals=[];particles=[];meleeVisuals=[];chainVisuals=[];AmbientFX.particles=[];bossWarning.active=false;
   pendingLevelUps=0;levelUpChoices=[];lootPopup=null;boss=null;
   ViewerChat.messages=[];ViewerChat.viewerCount=1000;ViewerChat.killStreak=0;
+  DungeonAI.reset();
   MetaProgress.startRun();
   FloorManager.init(1);generateTilemap();Spawner.reset();
   Camera.x=player.x-W/2;Camera.y=player.y-H/2;
@@ -3295,11 +3596,11 @@ const Game = {
         Spawner.update(dt);FloorManager.update(dt);SpatialGrid.buildFromEnemies();
         updateProjectiles(dt);updatePickups(dt);
         checkEnemyPlayerCollision(dt);despawnFarEnemies();
-        updateParticles(dt);updateVisuals(dt);ViewerChat.update(dt);AmbientFX.update(dt);updateBossWarning(dt);
+        updateParticles(dt);updateVisuals(dt);ViewerChat.update(dt);DungeonAI.update(dt);AmbientFX.update(dt);updateBossWarning(dt);
         if(lootPopup)lootPopup.timer-=dt;
         if(pendingLevelUps>0&&this.state==='playing'){levelUpChoices=generateLevelUpChoices();if(levelUpChoices.length>0)this.changeState('levelUp');else pendingLevelUps=0}
         break;
-      case'levelUp':updateParticles(dt);ViewerChat.update(dt);break;
+      case'levelUp':updateParticles(dt);ViewerChat.update(dt);DungeonAI.update(dt);break;
     }
   },
   draw(ctx){
@@ -3322,10 +3623,10 @@ const Game = {
         ctx.save();Camera.apply(ctx);drawGround(ctx);drawPickups(ctx);
         for(const e of enemies){if(e.alive)e.draw(ctx)}
         drawProjectiles(ctx);player.draw(ctx);drawParticles(ctx);ctx.restore();
-        drawGameOverScreen(ctx);break;
+        drawGameOverScreen(ctx);DungeonAI.update(1/60);DungeonAI.draw(ctx);break;
       case'victory':
         ctx.save();Camera.apply(ctx);drawGround(ctx);ctx.restore();
-        drawVictoryScreen(ctx);break;
+        drawVictoryScreen(ctx);DungeonAI.update(1/60);DungeonAI.draw(ctx);break;
     }
   }
 };
