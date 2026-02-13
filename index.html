@@ -1252,13 +1252,14 @@ const Input = {
   // Touch / joystick state
   isTouchDevice:false,
   joystick:{active:false,id:null,startX:0,startY:0,curX:0,curY:0,dx:0,dy:0},
+  _handledTouches:new Set(), // track touches already handled by touchstart to prevent double-fire on touchend
   init(){
     window.addEventListener('keydown',e=>{
       this.keys[e.code]=true;
       if(e.code==='Escape')this.escPressed=true;
       if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
-      // Name entry for leaderboard
-      if(scoreSubmitState==='entering'){
+      // Name entry for leaderboard (skip key repeats to prevent double entry)
+      if(scoreSubmitState==='entering'&&!e.repeat){
         e.preventDefault();
         if(e.key==='Backspace'){scoreSubmitName=scoreSubmitName.slice(0,-1)}
         else if(e.key==='Enter'&&scoreSubmitName.length>=2){submitScore()}
@@ -1289,6 +1290,7 @@ const Input = {
         } else {
           // Menu state, paused, level-up, or left half during gameplay: tap = click
           this.mouse.x=tx;this.mouse.y=ty;this.mouse.clicked=true;
+          this._handledTouches.add(t.identifier);
         }
       }
     },{passive:false});
@@ -1321,17 +1323,21 @@ const Input = {
           this.joystick.dx=0;this.joystick.dy=0;
         } else if(Game.state!=='playing'){
           // In menu/paused/levelUp states, register touchend as a click
-          // This ensures buttons work reliably on tap-and-release
-          const r=canvas.getBoundingClientRect();
-          this.mouse.x=(t.clientX-r.left)*(W/r.width);
-          this.mouse.y=(t.clientY-r.top)*(H/r.height);
-          this.mouse.clicked=true;
+          // BUT skip if touchstart already handled this touch (prevents double-fire)
+          if(!this._handledTouches.has(t.identifier)){
+            const r=canvas.getBoundingClientRect();
+            this.mouse.x=(t.clientX-r.left)*(W/r.width);
+            this.mouse.y=(t.clientY-r.top)*(H/r.height);
+            this.mouse.clicked=true;
+          }
+          this._handledTouches.delete(t.identifier);
         }
       }
     },{passive:false});
     canvas.addEventListener('touchcancel',e=>{
       this.joystick.active=false;this.joystick.id=null;
       this.joystick.dx=0;this.joystick.dy=0;
+      this._handledTouches.clear();
     },{passive:false});
   },
   getMovement(){
