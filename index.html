@@ -1168,19 +1168,20 @@ const Input = {
     // Touch events
     canvas.addEventListener('touchstart',e=>{
       e.preventDefault();this.isTouchDevice=true;Sound.resume();
-      const isGameplay=Game.state==='playing'||Game.state==='paused';
+      const isActivePlaying=Game.state==='playing';
       for(const t of e.changedTouches){
         const r=canvas.getBoundingClientRect();
         const tx=(t.clientX-r.left)*(W/r.width);
         const ty=(t.clientY-r.top)*(H/r.height);
-        if(isGameplay&&(isMobile?ty>H*0.45:tx>W*0.5)&&!this.joystick.active){
-          // Bottom half (portrait) or right half (landscape) during gameplay: joystick
+        if(isActivePlaying&&(isMobile?ty>H*0.45:tx>W*0.5)&&!this.joystick.active){
+          // Bottom half (portrait) or right half (landscape) during active gameplay only: joystick
+          // NOT during paused/levelUp — those need taps for buttons
           this.joystick.active=true;this.joystick.id=t.identifier;
           this.joystick.startX=tx;this.joystick.startY=ty;
           this.joystick.curX=tx;this.joystick.curY=ty;
           this.joystick.dx=0;this.joystick.dy=0;
         } else {
-          // Left half, or menu state: tap = click
+          // Menu state, paused, level-up, or left half during gameplay: tap = click
           this.mouse.x=tx;this.mouse.y=ty;this.mouse.clicked=true;
         }
       }
@@ -1212,6 +1213,13 @@ const Input = {
         if(this.joystick.active&&t.identifier===this.joystick.id){
           this.joystick.active=false;this.joystick.id=null;
           this.joystick.dx=0;this.joystick.dy=0;
+        } else if(Game.state!=='playing'){
+          // In menu/paused/levelUp states, register touchend as a click
+          // This ensures buttons work reliably on tap-and-release
+          const r=canvas.getBoundingClientRect();
+          this.mouse.x=(t.clientX-r.left)*(W/r.width);
+          this.mouse.y=(t.clientY-r.top)*(H/r.height);
+          this.mouse.clicked=true;
         }
       }
     },{passive:false});
@@ -2868,8 +2876,8 @@ function drawBossHPBar(ctx){
 // === TOUCH CONTROLS ===
 function drawTouchControls(ctx){
   if(!Input.isTouchDevice)return;
-  const isGameplay=Game.state==='playing'||Game.state==='paused';
-  if(isGameplay){
+  // Only show joystick + pause button during active gameplay (not paused/levelUp)
+  if(Game.state==='playing'){
     const j=Input.joystick;
     const s=UI_SCALE;
     // Joystick: bottom-right for portrait, sized to screen
@@ -3583,7 +3591,13 @@ const Game = {
     const pbSz=Math.round(32*UI_SCALE);
     const touchPause=Input.isTouchDevice&&Input.mouse.clicked&&Input.mouse.x>W-pbSz-20&&Input.mouse.y<pbSz+8;
     if(Input.escPressed||touchPause){
-      if(this.state==='playing'){this.state='paused';if(touchPause)Input.mouse.clicked=false;return}
+      if(this.state==='playing'){
+        this.state='paused';
+        // Release joystick so it doesn't drift while paused
+        Input.joystick.active=false;Input.joystick.id=null;Input.joystick.dx=0;Input.joystick.dy=0;
+        if(touchPause)Input.mouse.clicked=false;
+        return;
+      }
       else if(this.state==='paused'){this.state='playing';if(touchPause)Input.mouse.clicked=false;return}
     }
     switch(this.state){
