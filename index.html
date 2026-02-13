@@ -1137,6 +1137,7 @@ const MetaProgress = {
   },
   onBossKill() { this.runBossKills++; this.addBB(50); },
   onFloorClear() { this.addBB(25); },
+  lastRunData: null,
   endRun(floorReached, kills) {
     const playTime = (performance.now() - this.runStartTime) / 1000;
     this.data.stats.totalRuns++;
@@ -1144,6 +1145,19 @@ const MetaProgress = {
     this.data.stats.totalKills += kills;
     this.data.stats.totalPlayTime += playTime;
     this.data.stats.bossesDefeated += this.runBossKills;
+    // Capture run data for leaderboard submission
+    this.lastRunData = {
+      floor: floorReached,
+      kills: kills,
+      level: player ? player.level : 1,
+      time: playTime,
+      bossKills: this.runBossKills,
+      bbEarned: this.data.runBBCounter || 0,
+      viewers: ViewerChat.viewerCount,
+      classId: (player && player.classId) || selectedClass,
+      raceId: selectedRace,
+      victory: floorReached >= FLOOR_DEFS.length
+    };
     this.save();
   },
   startRun() { this.runKillCounter = 0; this.runBossKills = 0; this.runStartTime = performance.now(); this.data.runBBCounter=0; },
@@ -1154,6 +1168,84 @@ const MetaProgress = {
   getPermLuckMult() { return 1 + this.data.permUpgrades.luck * 0.05; },
 };
 
+// === LEADERBOARD SYSTEM ===
+let leaderboardData = null;
+let leaderboardLoading = false;
+let leaderboardScrollY = 0;
+let leaderboardPlayerBest = null;
+let scoreSubmitState = 'none'; // 'none'|'prompt'|'entering'|'submitting'|'submitted'|'failed'
+let scoreSubmitName = '';
+let scoreSubmitResult = null;
+let scoreSubmitKeyboard = false; // true when virtual keyboard visible
+let scoreSubmitCursor = 0; // blink timer
+
+function computeChecksum(name, floor, kills, level, time, bossKills, bbEarned, viewers, classId, raceId) {
+  const SECRET = 'dcc_survivors_2024';
+  const str = [name, floor, kills, level, Math.floor(time), bossKills, bbEarned, viewers, classId, raceId, SECRET].join('|');
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = ((hash << 5) + hash) + str.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return (hash >>> 0).toString(16);
+}
+
+async function fetchLeaderboard() {
+  leaderboardLoading = true;
+  leaderboardData = null;
+  leaderboardPlayerBest = null;
+  try {
+    const playerName = localStorage.getItem('dcc_player_name') || '';
+    const url = '/api/leaderboard?limit=50' + (playerName ? '&player=' + encodeURIComponent(playerName) : '');
+    const res = await fetch(url);
+    const data = await res.json();
+    leaderboardData = data.entries || [];
+    leaderboardPlayerBest = data.playerBest || null;
+  } catch(e) {
+    leaderboardData = [];
+  }
+  leaderboardLoading = false;
+}
+
+async function submitScore() {
+  if (!MetaProgress.lastRunData) { scoreSubmitState = 'failed'; return; }
+  scoreSubmitState = 'submitting';
+  const rd = MetaProgress.lastRunData;
+  const checksum = computeChecksum(scoreSubmitName, rd.floor, rd.kills, rd.level, rd.time, rd.bossKills, rd.bbEarned, rd.viewers, rd.classId, rd.raceId);
+  try {
+    const res = await fetch('/api/submit-score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: scoreSubmitName,
+        floor: rd.floor,
+        kills: rd.kills,
+        level: rd.level,
+        time: rd.time,
+        bossKills: rd.bossKills,
+        bbEarned: rd.bbEarned,
+        viewers: rd.viewers,
+        classId: rd.classId,
+        raceId: rd.raceId,
+        victory: rd.victory,
+        checksum: checksum
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      scoreSubmitResult = data;
+      localStorage.setItem('dcc_player_name', scoreSubmitName);
+      scoreSubmitState = 'submitted';
+    } else {
+      scoreSubmitResult = { error: data.error || 'Failed' };
+      scoreSubmitState = 'failed';
+    }
+  } catch(e) {
+    scoreSubmitResult = { error: 'Network error' };
+    scoreSubmitState = 'failed';
+  }
+}
+
 // === INPUT MANAGER ===
 const Input = {
   keys:{}, mouse:{x:0,y:0,clicked:false}, escPressed:false,
@@ -1161,7 +1253,21 @@ const Input = {
   isTouchDevice:false,
   joystick:{active:false,id:null,startX:0,startY:0,curX:0,curY:0,dx:0,dy:0},
   init(){
-    window.addEventListener('keydown',e=>{this.keys[e.code]=true;if(e.code==='Escape')this.escPressed=true;if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault()});
+    window.addEventListener('keydown',e=>{
+      this.keys[e.code]=true;
+      if(e.code==='Escape')this.escPressed=true;
+      if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
+      // Name entry for leaderboard
+      if(scoreSubmitState==='entering'){
+        e.preventDefault();
+        if(e.key==='Backspace'){scoreSubmitName=scoreSubmitName.slice(0,-1)}
+        else if(e.key==='Enter'&&scoreSubmitName.length>=2){submitScore()}
+        else if(e.key.length===1&&scoreSubmitName.length<16){
+          const ch=e.key.replace(/[^a-zA-Z0-9 _\-!.]/g,'');
+          if(ch)scoreSubmitName+=ch;
+        }
+      }
+    });
     window.addEventListener('keyup',e=>{this.keys[e.code]=false});
     canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();this.mouse.x=(e.clientX-r.left)*(W/r.width);this.mouse.y=(e.clientY-r.top)*(H/r.height)});
     canvas.addEventListener('click',()=>{this.mouse.clicked=true;Sound.resume()});
@@ -3124,10 +3230,13 @@ function drawTitleScreen(ctx){
   // Buttons - positioned relative to center
   const btnY=Math.round(H*(isPortrait?0.42:0.52));
   const playW=Math.min(320,isPortrait?W*0.7:W*0.4),btnH1=Math.round(48*s),btnH2=Math.round(40*s);
+  const row2Y=btnY+btnH1+Math.round(12*s);
+  const row3Y=row2Y+btnH2+Math.round(8*s);
   const btns=[
     {label:'PLAY',x:W/2-playW/2,y:btnY,w:playW,h:btnH1,color:'#44ffaa',action:'classSelect'},
-    {label:'SHOP',x:W/2-playW/2,y:btnY+btnH1+Math.round(12*s),w:Math.floor(playW/2-6),h:btnH2,color:'#ffcc44',action:'shop'},
-    {label:'STATS',x:W/2+6,y:btnY+btnH1+Math.round(12*s),w:Math.floor(playW/2-6),h:btnH2,color:'#88aaff',action:'stats'},
+    {label:'SHOP',x:W/2-playW/2,y:row2Y,w:Math.floor(playW/2-6),h:btnH2,color:'#ffcc44',action:'shop'},
+    {label:'STATS',x:W/2+6,y:row2Y,w:Math.floor(playW/2-6),h:btnH2,color:'#88aaff',action:'stats'},
+    {label:'LEADERBOARD',x:W/2-playW/2,y:row3Y,w:playW,h:btnH2,color:'#ff88cc',action:'leaderboard'},
   ];
   for(const b of btns){
     const hover=Input.mouse.x>=b.x&&Input.mouse.x<=b.x+b.w&&Input.mouse.y>=b.y&&Input.mouse.y<=b.y+b.h;
@@ -3140,7 +3249,7 @@ function drawTitleScreen(ctx){
   // Fullscreen button for mobile
   if(Input.isTouchDevice){
     const fsLabel=isFullscreen()?'EXIT FULLSCREEN':'GO FULLSCREEN';
-    const fsY2=btnY+btnH1+btnH2+Math.round(28*s);
+    const fsY2=row3Y+btnH2+Math.round(12*s);
     const fsW=Math.round(180*s),fsH=Math.round(36*s),fsX=W/2-fsW/2;
     const fsHover=Input.mouse.x>=fsX&&Input.mouse.x<=fsX+fsW&&Input.mouse.y>=fsY2&&Input.mouse.y<=fsY2+fsH;
     ctx.fillStyle=fsHover?'rgba(60,60,80,0.9)':'rgba(20,20,35,0.9)';ctx.fillRect(fsX,fsY2,fsW,fsH);
@@ -3505,6 +3614,259 @@ function drawStatsScreen(ctx){
   if(bHover&&Input.mouse.clicked){Sound.play('menuSelect');Game.changeState('title')}
 }
 
+// === LEADERBOARD SCREEN ===
+function drawLeaderboardScreen(ctx){
+  ctx.fillStyle='#0a0a14';ctx.fillRect(0,0,W,H);
+  const s=UI_SCALE;
+  const isPortrait=isMobile&&W<H;
+  // Title
+  ctx.font=`bold ${Math.round(24*s)}px monospace`;ctx.textAlign='center';
+  outlineText(ctx,'LEADERBOARD',W/2,Math.round(35*s),'#ff88cc','#440022');
+  // Back button
+  const bw=Math.round(80*s),bh=Math.round(32*s),bx=Math.round(10*s),by=Math.round(10*s);
+  const bHover=Input.mouse.x>=bx&&Input.mouse.x<=bx+bw&&Input.mouse.y>=by&&Input.mouse.y<=by+bh;
+  ctx.fillStyle=bHover?'rgba(60,60,80,0.9)':'rgba(20,20,35,0.9)';ctx.fillRect(bx,by,bw,bh);
+  ctx.strokeStyle='#ff6644';ctx.lineWidth=bHover?3:2;ctx.strokeRect(bx,by,bw,bh);
+  ctx.font=`bold ${Math.round(13*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,'< BACK',bx+bw/2,by+bh/2+Math.round(5*s),'#ff6644');
+  if(bHover&&Input.mouse.clicked){Sound.play('menuSelect');Game.changeState('title');return}
+  // Refresh button
+  const rw=Math.round(90*s),rx=W-rw-Math.round(10*s),ry=Math.round(10*s),rh=bh;
+  const rHover=Input.mouse.x>=rx&&Input.mouse.x<=rx+rw&&Input.mouse.y>=ry&&Input.mouse.y<=ry+rh;
+  ctx.fillStyle=rHover?'rgba(60,60,80,0.9)':'rgba(20,20,35,0.9)';ctx.fillRect(rx,ry,rw,rh);
+  ctx.strokeStyle='#44ffaa';ctx.lineWidth=rHover?3:2;ctx.strokeRect(rx,ry,rw,rh);
+  ctx.font=`bold ${Math.round(13*s)}px monospace`;outlineText(ctx,'REFRESH',rx+rw/2,ry+rh/2+Math.round(5*s),'#44ffaa');
+  if(rHover&&Input.mouse.clicked&&!leaderboardLoading){Sound.play('menuSelect');fetchLeaderboard()}
+  // Loading state
+  if(leaderboardLoading){
+    ctx.font=`bold ${Math.round(16*s)}px monospace`;ctx.textAlign='center';
+    const dots='.'.repeat(Math.floor(performance.now()/500)%4);
+    outlineText(ctx,'Loading'+dots,W/2,H/2,'#aaa');
+    return;
+  }
+  if(!leaderboardData){fetchLeaderboard();return}
+  // Table header
+  const tableTop=Math.round(58*s);
+  const rowH=Math.round((isPortrait?24:28)*s);
+  const colFs=Math.round((isPortrait?9:11)*s);
+  ctx.font=`bold ${colFs}px monospace`;ctx.textAlign='left';
+  // Column positions
+  const padL=Math.round(8*s);
+  const colRank=padL;
+  const colName=padL+Math.round((isPortrait?30:45)*s);
+  const colScore=padL+Math.round((isPortrait?120:200)*s);
+  const colFloor=padL+Math.round((isPortrait?185:290)*s);
+  const colClass=isPortrait?0:padL+Math.round(350*s);
+  // Header
+  ctx.fillStyle='#888';
+  ctx.fillText('#',colRank,tableTop);
+  ctx.fillText('NAME',colName,tableTop);
+  ctx.fillText('SCORE',colScore,tableTop);
+  ctx.fillText('FL',colFloor,tableTop);
+  if(!isPortrait&&colClass)ctx.fillText('CLASS',colClass,tableTop);
+  // Divider
+  ctx.strokeStyle='#333';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(padL,tableTop+Math.round(6*s));ctx.lineTo(W-padL,tableTop+Math.round(6*s));ctx.stroke();
+  // Scrollable entries
+  const maxVisible=Math.floor((H-tableTop-Math.round(80*s))/rowH);
+  const totalEntries=leaderboardData.length;
+  leaderboardScrollY=clamp(leaderboardScrollY,0,Math.max(0,totalEntries-maxVisible));
+  const startIdx=Math.floor(leaderboardScrollY);
+  // Handle scroll input
+  if(Input.keys['ArrowDown'])leaderboardScrollY=Math.min(leaderboardScrollY+0.15,Math.max(0,totalEntries-maxVisible));
+  if(Input.keys['ArrowUp'])leaderboardScrollY=Math.max(leaderboardScrollY-0.15,0);
+  // Draw entries
+  for(let i=0;i<maxVisible&&startIdx+i<totalEntries;i++){
+    const entry=leaderboardData[startIdx+i];
+    const ey=tableTop+Math.round(12*s)+i*rowH;
+    // Highlight own entries
+    const savedName=(localStorage.getItem('dcc_player_name')||'').toLowerCase();
+    const isOwn=entry.name.toLowerCase()===savedName;
+    if(isOwn){ctx.fillStyle='rgba(255,136,204,0.12)';ctx.fillRect(padL-4,ey-Math.round(10*s),W-padL*2+8,rowH)}
+    ctx.font=`bold ${colFs}px monospace`;ctx.textAlign='left';
+    ctx.fillStyle=isOwn?'#ff88cc':(entry.victory?'#ffdd44':'#ccc');
+    ctx.fillText(entry.rank,colRank,ey);
+    ctx.fillText(entry.name.substring(0,isPortrait?10:14),colName,ey);
+    ctx.fillText(formatNumber(entry.score),colScore,ey);
+    ctx.fillText(entry.floor+(entry.victory?'W':''),colFloor,ey);
+    if(!isPortrait&&colClass){
+      const cls=CLASS_DEFS[entry.classId];
+      ctx.fillStyle=cls?cls.color:'#888';
+      ctx.fillText(cls?cls.name.substring(0,10):'???',colClass,ey);
+    }
+  }
+  // Empty state
+  if(totalEntries===0){
+    ctx.font=`bold ${Math.round(14*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,'No scores yet. Be the first!',W/2,H/2,'#888');
+  }
+  // Scroll indicator
+  if(totalEntries>maxVisible){
+    const barH=Math.round((H-tableTop-Math.round(90*s))*(maxVisible/totalEntries));
+    const barY=tableTop+Math.round(12*s)+(leaderboardScrollY/(totalEntries-maxVisible))*(H-tableTop-Math.round(90*s)-barH);
+    ctx.fillStyle='rgba(255,136,204,0.3)';ctx.fillRect(W-Math.round(6*s),barY,Math.round(4*s),barH);
+  }
+  // Player's personal best at bottom
+  if(leaderboardPlayerBest){
+    const pbY=H-Math.round(50*s);
+    ctx.fillStyle='rgba(20,20,35,0.95)';ctx.fillRect(0,pbY-Math.round(8*s),W,Math.round(50*s));
+    ctx.strokeStyle='#ff88cc';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,pbY-Math.round(8*s));ctx.lineTo(W,pbY-Math.round(8*s));ctx.stroke();
+    ctx.font=`bold ${Math.round(12*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,`YOUR BEST: #${leaderboardPlayerBest.rank||'?'} — ${leaderboardPlayerBest.name} — Score: ${formatNumber(leaderboardPlayerBest.score)} — Floor ${leaderboardPlayerBest.floor}${leaderboardPlayerBest.victory?' (Victory!)':''}`,W/2,pbY+Math.round(10*s),'#ff88cc');
+  }
+  // Total entries
+  ctx.font=`${Math.round(10*s)}px monospace`;ctx.textAlign='center';ctx.fillStyle='#555';
+  ctx.fillText(`${totalEntries} total runs recorded`,W/2,H-Math.round(12*s));
+}
+
+// Handle mouse wheel scroll on leaderboard
+canvas.addEventListener('wheel',e=>{
+  if(Game.state==='leaderboard'){
+    e.preventDefault();
+    leaderboardScrollY+=e.deltaY>0?3:-3;
+  }
+},{passive:false});
+
+// === SCORE SUBMISSION UI ===
+function drawScoreSubmitOverlay(ctx, isVictory){
+  const s=UI_SCALE;
+  const isPortrait=isMobile&&W<H;
+  if(scoreSubmitState==='none'){
+    // Show prompt: SUBMIT SCORE or SKIP
+    scoreSubmitState='prompt';
+    scoreSubmitName=localStorage.getItem('dcc_player_name')||'';
+    scoreSubmitResult=null;
+  }
+  if(scoreSubmitState==='prompt'){
+    const btnW=Math.min(200,W*0.4),btnH2=Math.round(36*s);
+    const submitX=W/2-btnW-Math.round(8*s),skipX=W/2+Math.round(8*s);
+    const btnY2=H/2+Math.round(100*s);
+    // Submit button
+    const sHov=Input.mouse.x>=submitX&&Input.mouse.x<=submitX+btnW&&Input.mouse.y>=btnY2&&Input.mouse.y<=btnY2+btnH2;
+    ctx.fillStyle=sHov?'rgba(60,60,80,0.95)':'rgba(20,20,35,0.95)';ctx.fillRect(submitX,btnY2,btnW,btnH2);
+    ctx.strokeStyle='#ff88cc';ctx.lineWidth=sHov?3:2;ctx.strokeRect(submitX,btnY2,btnW,btnH2);
+    ctx.font=`bold ${Math.round(14*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,'SUBMIT SCORE',submitX+btnW/2,btnY2+btnH2/2+Math.round(5*s),'#ff88cc');
+    // Skip button
+    const kHov=Input.mouse.x>=skipX&&Input.mouse.x<=skipX+btnW&&Input.mouse.y>=btnY2&&Input.mouse.y<=btnY2+btnH2;
+    ctx.fillStyle=kHov?'rgba(60,60,80,0.95)':'rgba(20,20,35,0.95)';ctx.fillRect(skipX,btnY2,btnW,btnH2);
+    ctx.strokeStyle='#888';ctx.lineWidth=kHov?3:2;ctx.strokeRect(skipX,btnY2,btnW,btnH2);
+    outlineText(ctx,'SKIP',skipX+btnW/2,btnY2+btnH2/2+Math.round(5*s),'#888');
+    if(sHov&&Input.mouse.clicked){Sound.play('menuSelect');scoreSubmitState='entering';Input.mouse.clicked=false}
+    if(kHov&&Input.mouse.clicked){Sound.play('menuSelect');scoreSubmitState='none';Game.changeState('title');Input.mouse.clicked=false}
+    return;
+  }
+  if(scoreSubmitState==='entering'){
+    // Name entry overlay
+    ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(0,H/2+Math.round(70*s),W,H/2-Math.round(70*s));
+    ctx.font=`bold ${Math.round(14*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,'ENTER YOUR NAME',W/2,H/2+Math.round(90*s),'#ff88cc');
+    // Name input field
+    const fieldW=Math.min(280,W*0.7),fieldH=Math.round(32*s);
+    const fieldX=W/2-fieldW/2,fieldY=H/2+Math.round(100*s);
+    ctx.fillStyle='rgba(20,20,40,0.95)';ctx.fillRect(fieldX,fieldY,fieldW,fieldH);
+    ctx.strokeStyle='#ff88cc';ctx.lineWidth=2;ctx.strokeRect(fieldX,fieldY,fieldW,fieldH);
+    // Display name with cursor
+    const cursor=Math.sin(performance.now()/400)>0?'|':'';
+    ctx.font=`bold ${Math.round(16*s)}px monospace`;ctx.textAlign='left';
+    ctx.fillStyle='#fff';ctx.fillText(scoreSubmitName+cursor,fieldX+Math.round(8*s),fieldY+fieldH/2+Math.round(6*s));
+    // Virtual keyboard for mobile
+    if(Input.isTouchDevice){
+      const kbTop=H/2+Math.round(140*s);
+      const kbRows=['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'];
+      const keyH=Math.round(28*s),keyGap=Math.round(3*s);
+      for(let r=0;r<kbRows.length;r++){
+        const row=kbRows[r];
+        const keyW=Math.min(Math.round(28*s),Math.floor((W-Math.round(20*s)-(row.length-1)*keyGap)/row.length));
+        const rowW=row.length*(keyW+keyGap)-keyGap;
+        const rowX=W/2-rowW/2;
+        for(let k=0;k<row.length;k++){
+          const kx=rowX+k*(keyW+keyGap);
+          const ky=kbTop+r*(keyH+keyGap);
+          const kHov=Input.mouse.x>=kx&&Input.mouse.x<=kx+keyW&&Input.mouse.y>=ky&&Input.mouse.y<=ky+keyH;
+          ctx.fillStyle=kHov?'#555':'#333';ctx.fillRect(kx,ky,keyW,keyH);
+          ctx.strokeStyle='#666';ctx.lineWidth=1;ctx.strokeRect(kx,ky,keyW,keyH);
+          ctx.font=`bold ${Math.round(12*s)}px monospace`;ctx.textAlign='center';ctx.fillStyle='#ddd';
+          ctx.fillText(row[k],kx+keyW/2,ky+keyH/2+Math.round(4*s));
+          if(kHov&&Input.mouse.clicked&&scoreSubmitName.length<16){
+            scoreSubmitName+=row[k];Input.mouse.clicked=false;
+          }
+        }
+      }
+      // Bottom row: 0-9, BACK, DONE
+      const bottomY=kbTop+3*(keyH+keyGap);
+      const actionKeys=['0','1','2','3','4','5','6','7','8','9','DEL','GO'];
+      const akW=Math.min(Math.round(28*s),Math.floor((W-Math.round(20*s)-(actionKeys.length-1)*keyGap)/actionKeys.length));
+      const akRowW=actionKeys.length*(akW+keyGap)-keyGap;
+      const akRowX=W/2-akRowW/2;
+      for(let k=0;k<actionKeys.length;k++){
+        const kx=akRowX+k*(akW+keyGap);
+        const ky=bottomY;
+        const label=actionKeys[k];
+        const kHov=Input.mouse.x>=kx&&Input.mouse.x<=kx+akW&&Input.mouse.y>=ky&&Input.mouse.y<=ky+keyH;
+        const isAction=label==='DEL'||label==='GO';
+        ctx.fillStyle=kHov?(isAction?'#664':'#555'):(isAction?'#442':'#333');
+        ctx.fillRect(kx,ky,akW,keyH);
+        ctx.strokeStyle=label==='GO'?'#44ffaa':(label==='DEL'?'#ff6644':'#666');ctx.lineWidth=1;ctx.strokeRect(kx,ky,akW,keyH);
+        ctx.font=`bold ${Math.round((isAction?10:12)*s)}px monospace`;ctx.textAlign='center';
+        ctx.fillStyle=label==='GO'?'#44ffaa':(label==='DEL'?'#ff6644':'#ddd');
+        ctx.fillText(label,kx+akW/2,ky+keyH/2+Math.round(4*s));
+        if(kHov&&Input.mouse.clicked){
+          if(label==='DEL')scoreSubmitName=scoreSubmitName.slice(0,-1);
+          else if(label==='GO'&&scoreSubmitName.length>=2)submitScore();
+          else if(!isAction&&scoreSubmitName.length<16)scoreSubmitName+=label;
+          Input.mouse.clicked=false;
+        }
+      }
+      // Space bar
+      const spW=Math.round(120*s),spX=W/2-spW/2,spY=bottomY+keyH+keyGap;
+      const spHov=Input.mouse.x>=spX&&Input.mouse.x<=spX+spW&&Input.mouse.y>=spY&&Input.mouse.y<=spY+keyH;
+      ctx.fillStyle=spHov?'#555':'#333';ctx.fillRect(spX,spY,spW,keyH);
+      ctx.strokeStyle='#666';ctx.lineWidth=1;ctx.strokeRect(spX,spY,spW,keyH);
+      ctx.font=`bold ${Math.round(10*s)}px monospace`;ctx.textAlign='center';ctx.fillStyle='#888';ctx.fillText('SPACE',spX+spW/2,spY+keyH/2+Math.round(4*s));
+      if(spHov&&Input.mouse.clicked&&scoreSubmitName.length<16){scoreSubmitName+=' ';Input.mouse.clicked=false}
+    } else {
+      // Desktop: just show typing hint
+      ctx.font=`${Math.round(11*s)}px monospace`;ctx.textAlign='center';ctx.fillStyle='#888';
+      ctx.fillText('Type your name, press ENTER to submit',W/2,H/2+Math.round(145*s));
+    }
+    // Validation hint
+    if(scoreSubmitName.length<2){
+      ctx.font=`${Math.round(10*s)}px monospace`;ctx.textAlign='center';ctx.fillStyle='#ff6644';
+      ctx.fillText('Min 2 characters',W/2,fieldY+fieldH+Math.round(14*s));
+    }
+    return;
+  }
+  if(scoreSubmitState==='submitting'){
+    ctx.font=`bold ${Math.round(16*s)}px monospace`;ctx.textAlign='center';
+    const dots='.'.repeat(Math.floor(performance.now()/400)%4);
+    outlineText(ctx,'Submitting'+dots,W/2,H/2+Math.round(110*s),'#ff88cc');
+    return;
+  }
+  if(scoreSubmitState==='submitted'){
+    ctx.font=`bold ${Math.round(16*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,`RANK #${scoreSubmitResult.rank||'?'}`,W/2,H/2+Math.round(100*s),'#ffdd44','#443300');
+    ctx.font=`bold ${Math.round(12*s)}px monospace`;
+    outlineText(ctx,`Score: ${formatNumber(scoreSubmitResult.score||0)}`,W/2,H/2+Math.round(120*s),'#44ffaa');
+    if(Math.sin(performance.now()/1000*3)>0){
+      ctx.font=`bold ${Math.round((isPortrait?12:14)*s)}px monospace`;
+      outlineText(ctx,Input.isTouchDevice?'TAP TO CONTINUE':'CLICK TO CONTINUE',W/2,H/2+Math.round(150*s),'#fff');
+    }
+    if(Input.mouse.clicked){Sound.play('menuSelect');scoreSubmitState='none';Game.changeState('title');Input.mouse.clicked=false}
+    return;
+  }
+  if(scoreSubmitState==='failed'){
+    ctx.font=`bold ${Math.round(14*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,'Failed to submit',W/2,H/2+Math.round(100*s),'#ff6644');
+    ctx.font=`${Math.round(10*s)}px monospace`;ctx.fillStyle='#888';
+    ctx.fillText(scoreSubmitResult?scoreSubmitResult.error:'Unknown error',W/2,H/2+Math.round(118*s));
+    if(Math.sin(performance.now()/1000*3)>0){
+      ctx.font=`bold ${Math.round((isPortrait?12:14)*s)}px monospace`;
+      outlineText(ctx,Input.isTouchDevice?'TAP TO CONTINUE':'CLICK TO CONTINUE',W/2,H/2+Math.round(145*s),'#fff');
+    }
+    if(Input.mouse.clicked){Sound.play('menuSelect');scoreSubmitState='none';Game.changeState('title');Input.mouse.clicked=false}
+    return;
+  }
+}
+
 // === GAME OVER / VICTORY ===
 function drawGameOverScreen(ctx){
   ctx.fillStyle='rgba(0,0,0,0.88)';ctx.fillRect(0,0,W,H);
@@ -3515,8 +3877,8 @@ function drawGameOverScreen(ctx){
   ctx.font=`bold ${Math.round((isPortrait?12:14)*sc)}px monospace`;ctx.fillStyle='#ddd';
   const lh=Math.round((isPortrait?20:22)*sc);
   [`Level: ${player.level}`,`Floor: ${FloorManager.floorNumber}`,`Kills: ${player.killCount}`,`Viewers: ${formatNumber(ViewerChat.viewerCount)}`,`BB: ${MetaProgress.data.bezosBoxes}`].forEach((s,i)=>ctx.fillText(s,W/2,H/2-Math.round(16*sc)+i*lh));
-  if(Math.sin(performance.now()/1000*3)>0){ctx.font=`bold ${Math.round((isPortrait?14:18)*sc)}px monospace`;outlineText(ctx,Input.isTouchDevice?'TAP TO RESTART':'CLICK TO RESTART',W/2,H/2+Math.round(85*sc),'#fff')}
-  if(Input.mouse.clicked){Sound.play('menuSelect');Game.changeState('title')}
+  // Score submission UI (replaces simple click-to-restart)
+  drawScoreSubmitOverlay(ctx, false);
 }
 
 function drawVictoryScreen(ctx){
@@ -3532,8 +3894,8 @@ function drawVictoryScreen(ctx){
   ctx.font=`bold ${Math.round((isPortrait?12:14)*sc)}px monospace`;ctx.fillStyle='#ddd';
   const lh=Math.round((isPortrait?20:22)*sc);
   [`Level: ${player.level}`,`Floors: ${FloorManager.floorNumber}`,`Kills: ${player.killCount}`,`Viewers: ${formatNumber(ViewerChat.viewerCount)}`,`Rating: ${'*'.repeat(ViewerChat.viewerRating)}`].forEach((s,i)=>ctx.fillText(s,W/2,H/2-Math.round(16*sc)+i*lh));
-  if(Math.sin(performance.now()/1000*3)>0){ctx.font=`bold ${Math.round((isPortrait?14:18)*sc)}px monospace`;outlineText(ctx,Input.isTouchDevice?'TAP TO PLAY AGAIN':'CLICK TO PLAY AGAIN',W/2,H/2+Math.round(85*sc),'#fff')}
-  if(Input.mouse.clicked){Sound.play('menuSelect');Game.changeState('title')}
+  // Score submission UI (replaces simple click-to-restart)
+  drawScoreSubmitOverlay(ctx, true);
 }
 
 // === START NEW RUN ===
@@ -3582,9 +3944,10 @@ const Game = {
   state:'title',
   changeState(s){
     this.state=s;
-    if(s==='title')Music.play('title');
-    else if(s==='victory')Music.play('victory');
-    else if(s==='gameOver')Music.stop();
+    if(s==='title'){Music.play('title');scoreSubmitState='none'}
+    else if(s==='victory'){Music.play('victory');scoreSubmitState='none'}
+    else if(s==='gameOver'){Music.stop();scoreSubmitState='none'}
+    else if(s==='leaderboard'){fetchLeaderboard();leaderboardScrollY=0}
   },
   update(dt){
     // Pause toggle (ESC or touch pause button)
@@ -3623,6 +3986,7 @@ const Game = {
       case'classSelect':drawClassSelectScreen(ctx);break;
       case'shop':drawShopScreen(ctx);break;
       case'stats':drawStatsScreen(ctx);break;
+      case'leaderboard':drawLeaderboardScreen(ctx);break;
       case'paused':
       case'playing':case'levelUp':
         ctx.save();Camera.apply(ctx);drawGround(ctx);drawPickups(ctx);FloorManager.drawStairwell(ctx);
