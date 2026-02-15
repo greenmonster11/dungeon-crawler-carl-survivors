@@ -91,6 +91,7 @@ function randInt(a,b){return Math.floor(rand(a,b+1))}
 function randomFrom(a){return a[Math.floor(Math.random()*a.length)]}
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function formatNumber(n){if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(1)+'K';return Math.floor(n).toString()}
+function formatScore(n){return Math.floor(n).toLocaleString()}
 
 // === SPATIAL HASH GRID ===
 const SpatialGrid = {
@@ -1171,6 +1172,7 @@ const MetaProgress = {
 // === LEADERBOARD SYSTEM ===
 let leaderboardData = null;
 let leaderboardLoading = false;
+let leaderboardError = null;
 let leaderboardScrollY = 0;
 let leaderboardPlayerBest = null;
 let scoreSubmitState = 'none'; // 'none'|'prompt'|'entering'|'submitting'|'submitted'|'failed'
@@ -1193,15 +1195,23 @@ function computeChecksum(name, floor, kills, level, time, bossKills, bbEarned, v
 async function fetchLeaderboard() {
   leaderboardLoading = true;
   leaderboardData = null;
+  leaderboardError = null;
   leaderboardPlayerBest = null;
   try {
     const playerName = localStorage.getItem('dcc_player_name') || '';
     const url = '/api/leaderboard?limit=50' + (playerName ? '&player=' + encodeURIComponent(playerName) : '');
     const res = await fetch(url);
-    const data = await res.json();
-    leaderboardData = data.entries || [];
-    leaderboardPlayerBest = data.playerBest || null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      leaderboardError = (err && err.error) || `Server error (${res.status})`;
+      leaderboardData = [];
+    } else {
+      const data = await res.json();
+      leaderboardData = data.entries || [];
+      leaderboardPlayerBest = data.playerBest || null;
+    }
   } catch(e) {
+    leaderboardError = 'Network error — check your connection';
     leaderboardData = [];
   }
   leaderboardLoading = false;
@@ -3691,7 +3701,7 @@ function drawLeaderboardScreen(ctx){
     ctx.fillStyle=isOwn?'#ff88cc':(entry.victory?'#ffdd44':'#ccc');
     ctx.fillText(entry.rank,colRank,ey);
     ctx.fillText(entry.name.substring(0,isPortrait?10:14),colName,ey);
-    ctx.fillText(formatNumber(entry.score),colScore,ey);
+    ctx.fillText(formatScore(entry.score),colScore,ey);
     ctx.fillText(entry.floor+(entry.victory?'W':''),colFloor,ey);
     if(!isPortrait&&colClass){
       const cls=CLASS_DEFS[entry.classId];
@@ -3699,10 +3709,16 @@ function drawLeaderboardScreen(ctx){
       ctx.fillText(cls?cls.name.substring(0,10):'???',colClass,ey);
     }
   }
-  // Empty state
+  // Empty / error state
   if(totalEntries===0){
     ctx.font=`bold ${Math.round(14*s)}px monospace`;ctx.textAlign='center';
-    outlineText(ctx,'No scores yet. Be the first!',W/2,H/2,'#888');
+    if(leaderboardError){
+      outlineText(ctx,'Failed to load leaderboard',W/2,H/2-Math.round(12*s),'#ff6644');
+      ctx.font=`${Math.round(11*s)}px monospace`;ctx.fillStyle='#888';
+      ctx.fillText(leaderboardError,W/2,H/2+Math.round(8*s));
+    } else {
+      outlineText(ctx,'No scores yet. Be the first!',W/2,H/2,'#888');
+    }
   }
   // Scroll indicator
   if(totalEntries>maxVisible){
@@ -3716,7 +3732,7 @@ function drawLeaderboardScreen(ctx){
     ctx.fillStyle='rgba(20,20,35,0.95)';ctx.fillRect(0,pbY-Math.round(8*s),W,Math.round(50*s));
     ctx.strokeStyle='#ff88cc';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,pbY-Math.round(8*s));ctx.lineTo(W,pbY-Math.round(8*s));ctx.stroke();
     ctx.font=`bold ${Math.round(12*s)}px monospace`;ctx.textAlign='center';
-    outlineText(ctx,`YOUR BEST: #${leaderboardPlayerBest.rank||'?'} — ${leaderboardPlayerBest.name} — Score: ${formatNumber(leaderboardPlayerBest.score)} — Floor ${leaderboardPlayerBest.floor}${leaderboardPlayerBest.victory?' (Victory!)':''}`,W/2,pbY+Math.round(10*s),'#ff88cc');
+    outlineText(ctx,`YOUR BEST: #${leaderboardPlayerBest.rank||'?'} — ${leaderboardPlayerBest.name} — Score: ${formatScore(leaderboardPlayerBest.score)} — Floor ${leaderboardPlayerBest.floor}${leaderboardPlayerBest.victory?' (Victory!)':''}`,W/2,pbY+Math.round(10*s),'#ff88cc');
   }
   // Total entries
   ctx.font=`${Math.round(10*s)}px monospace`;ctx.textAlign='center';ctx.fillStyle='#555';
@@ -3851,7 +3867,7 @@ function drawScoreSubmitOverlay(ctx, isVictory){
     ctx.font=`bold ${Math.round(16*s)}px monospace`;ctx.textAlign='center';
     outlineText(ctx,`RANK #${scoreSubmitResult.rank||'?'}`,W/2,H/2+Math.round(100*s),'#ffdd44','#443300');
     ctx.font=`bold ${Math.round(12*s)}px monospace`;
-    outlineText(ctx,`Score: ${formatNumber(scoreSubmitResult.score||0)}`,W/2,H/2+Math.round(120*s),'#44ffaa');
+    outlineText(ctx,`Score: ${formatScore(scoreSubmitResult.score||0)}`,W/2,H/2+Math.round(120*s),'#44ffaa');
     if(Math.sin(performance.now()/1000*3)>0){
       ctx.font=`bold ${Math.round((isPortrait?12:14)*s)}px monospace`;
       outlineText(ctx,Input.isTouchDevice?'TAP TO CONTINUE':'CLICK TO CONTINUE',W/2,H/2+Math.round(150*s),'#fff');
