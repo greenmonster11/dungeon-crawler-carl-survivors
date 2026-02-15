@@ -22,30 +22,26 @@ export default async function handler(req, res) {
     const playerName = req.query.player || '';
 
     // Get top run IDs with scores from sorted set (highest first)
+    // @upstash/redis zrange with withScores returns [{member, score}, ...]
     const topResults = await redis.zrange('leaderboard', 0, limit - 1, { rev: true, withScores: true });
 
-    // topResults is an array of [member, score, member, score, ...]
-    // With @upstash/redis it returns [{member, score}, ...] when withScores is true
+    // Extract IDs and fetch all run data in parallel (fixes N+1 sequential query bottleneck)
+    const ids = topResults.map(item => typeof item === 'object' ? (item.member || item.value) : item);
+    const scores = topResults.map(item => typeof item === 'object' ? item.score : 0);
+
+    const runDataPromises = ids.map(id => redis.hgetall(`run:${id}`));
+    const allRunData = await Promise.all(runDataPromises);
+
+    // Build entries, preserving sorted set rank even when some entries have expired
     const entries = [];
-
-    for (let i = 0; i < topResults.length; i++) {
-      const item = topResults[i];
-      const id = typeof item === 'object' ? item.member || item.value : item;
-      const score = typeof item === 'object' ? item.score : topResults[i + 1];
-
-      if (typeof item !== 'object') {
-        // Skip score entries in flat array format
-        if (i % 2 !== 0) continue;
-        i++; // skip next (score)
-      }
-
-      const data = await redis.hgetall(`run:${id}`);
+    for (let i = 0; i < ids.length; i++) {
+      const data = allRunData[i];
       if (data && data.name) {
         entries.push({
-          rank: entries.length + 1,
-          id: id,
+          rank: i + 1, // rank from sorted set position, not filtered array index
+          id: ids[i],
           name: data.name,
-          score: parseInt(data.score) || 0,
+          score: parseInt(data.score) || scores[i] || 0,
           floor: parseInt(data.floor) || 1,
           kills: parseInt(data.kills) || 0,
           level: parseInt(data.level) || 1,
