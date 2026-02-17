@@ -1,5 +1,8 @@
 {
   "private": true,
+  "scripts": {
+    "assets:maps": "node scripts/generate-map-assets.js"
+  },
   "dependencies": {
     "@upstash/redis": "^1.34.0"
   }

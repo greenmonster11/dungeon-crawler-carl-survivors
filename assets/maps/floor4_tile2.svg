@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+<rect width="64" height="64" fill="#224422"/>
+<rect x="55" y="44" width="1" height="2" fill="rgb(52,86,52)" opacity="0.195"/>
+<rect x="7" y="63" width="1" height="2" fill="rgb(52,86,52)" opacity="0.265"/>
+<rect x="36" y="51" width="2" height="1" fill="rgb(16,50,16)" opacity="0.094"/>
+<rect x="41" y="51" width="2" height="1" fill="rgb(16,50,16)" opacity="0.299"/>
+<rect x="24" y="14" width="2" height="2" fill="rgb(52,86,52)" opacity="0.111"/>
+<rect x="48" y="38" width="2" height="2" fill="rgb(52,86,52)" opacity="0.220"/>
+<rect x="5" y="41" width="1" height="1" fill="rgb(16,50,16)" opacity="0.121"/>
+<rect x="31" y="4" width="2" height="1" fill="rgb(16,50,16)" opacity="0.115"/>
+<rect x="34" y="35" width="2" height="1" fill="rgb(16,50,16)" opacity="0.220"/>
+<rect x="51" y="61" width="1" height="1" fill="rgb(16,50,16)" opacity="0.135"/>
+<rect x="43" y="0" width="1" height="2" fill="rgb(52,86,52)" opacity="0.293"/>
+<rect x="3" y="37" width="1" height="1" fill="rgb(52,86,52)" opacity="0.097"/>
+<rect x="0" y="42" width="1" height="1" fill="rgb(16,50,16)" opacity="0.090"/>
+<rect x="10" y="30" width="1" height="2" fill="rgb(16,50,16)" opacity="0.139"/>
+<rect x="44" y="4" width="2" height="1" fill="rgb(52,86,52)" opacity="0.189"/>
+<rect x="47" y="39" width="1" height="2" fill="rgb(16,50,16)" opacity="0.194"/>
+<rect x="22" y="24" width="2" height="2" fill="rgb(16,50,16)" opacity="0.109"/>
+<rect x="8" y="19" width="2" height="2" fill="rgb(52,86,52)" opacity="0.283"/>
+<rect x="60" y="60" width="1" height="2" fill="rgb(52,86,52)" opacity="0.218"/>
+<rect x="23" y="35" width="1" height="1" fill="rgb(16,50,16)" opacity="0.175"/>
+<rect x="22" y="44" width="1" height="2" fill="rgb(16,50,16)" opacity="0.282"/>
+<rect x="18" y="44" width="2" height="1" fill="rgb(16,50,16)" opacity="0.300"/>
+<rect x="51" y="5" width="2" height="1" fill="rgb(52,86,52)" opacity="0.114"/>
+<rect x="34" y="19" width="1" height="1" fill="rgb(16,50,16)" opacity="0.143"/>
+<rect x="6" y="59" width="1" height="1" fill="rgb(16,50,16)" opacity="0.084"/>
+<rect x="59" y="56" width="1" height="2" fill="rgb(16,50,16)" opacity="0.097"/>
+<rect x="9" y="42" width="2" height="2" fill="rgb(52,86,52)" opacity="0.263"/>
+<rect x="40" y="57" width="2" height="1" fill="rgb(52,86,52)" opacity="0.233"/>
+<rect x="27" y="40" width="2" height="2" fill="rgb(52,86,52)" opacity="0.254"/>
+<rect x="3" y="0" width="2" height="2" fill="rgb(52,86,52)" opacity="0.097"/>
+<rect x="28" y="37" width="1" height="1" fill="rgb(52,86,52)" opacity="0.115"/>
+<rect x="21" y="34" width="1" height="1" fill="rgb(52,86,52)" opacity="0.162"/>
+<rect x="11" y="22" width="2" height="2" fill="rgb(16,50,16)" opacity="0.151"/>
+<rect x="62" y="41" width="1" height="2" fill="rgb(52,86,52)" opacity="0.106"/>
+<rect x="62" y="27" width="1" height="2" fill="rgb(52,86,52)" opacity="0.086"/>
+<rect x="49" y="54" width="1" height="1" fill="rgb(16,50,16)" opacity="0.170"/>
+<line x1="45" y1="9" x2="43" y2="10" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.177"/>
+<line x1="12" y1="26" x2="11" y2="29" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.291"/>
+<line x1="60" y1="42" x2="64" y2="34" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.245"/>
+<line x1="26" y1="33" x2="17" y2="23" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.210"/>
+<line x1="6" y1="47" x2="3" y2="54" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.155"/>
+<line x1="1" y1="43" x2="12" y2="36" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.097"/>
+<line x1="13" y1="9" x2="9" y2="6" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.296"/>
+<line x1="4" y1="46" x2="7" y2="39" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.170"/>
+<line x1="22" y1="15" x2="29" y2="7" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.185"/>
+<line x1="26" y1="36" x2="25" y2="42" stroke="rgb(0,33,0)" stroke-width="1" opacity="0.103"/>
+<rect x="0" y="0" width="64" height="64" fill="none" stroke="rgb(10,44,10)" stroke-width="1" opacity="0.25"/>
+</svg>

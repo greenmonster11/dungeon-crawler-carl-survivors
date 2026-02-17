@@ -130,6 +130,26 @@ function loadSpriteAssets(){
   }
 }
 
+const MAP_TILE_VARIANTS = 4;
+const MapTileAssets = {
+  tiles: {},
+  load() {
+    for (let floor = 1; floor <= 9; floor++) {
+      for (let variant = 1; variant <= MAP_TILE_VARIANTS; variant++) {
+        const key = `${floor}:${variant}`;
+        const img = new Image();
+        img.src = `assets/maps/floor${floor}_tile${variant}.svg`;
+        this.tiles[key] = img;
+      }
+    }
+  },
+  get(floor, variant) {
+    const f = clamp(floor || 1, 1, 9);
+    const v = clamp(variant || 1, 1, MAP_TILE_VARIANTS);
+    return this.tiles[`${f}:${v}`];
+  }
+};
+
 // === SPRITE CACHE ===
 const SpriteCache={
   sprites:{}, canvases:{},
@@ -3039,15 +3059,34 @@ function generateTilemap(){
   const cols=Math.ceil(CONFIG.FLOOR_WIDTH/CONFIG.TILE_SIZE),rows=Math.ceil(CONFIG.FLOOR_HEIGHT/CONFIG.TILE_SIZE);
   tilemap=[];for(let y=0;y<rows;y++){tilemap[y]=[];for(let x=0;x<cols;x++)tilemap[y][x]=Math.random()}
 }
+
+function tileVariantFromNoise(v){
+  if(v<0.6)return 1;
+  if(v<0.8)return 2;
+  if(v<0.95)return 3;
+  return 4;
+}
+
 function drawGround(ctx){
+  if(!tilemap||!tilemap.length||!tilemap[0].length)return;
   const ts=CONFIG.TILE_SIZE;
   const sc=Math.max(0,Math.floor(Camera.x/ts)),ec=Math.min(tilemap[0].length,Math.ceil((Camera.x+W)/ts)+1);
   const sr=Math.max(0,Math.floor(Camera.y/ts)),er=Math.min(tilemap.length,Math.ceil((Camera.y+H)/ts)+1);
+  const floorNum = FloorManager.floorNumber || 1;
   const colors = FloorManager.currentFloor ? FloorManager.currentFloor.colors : ['#2a2a2e','#252530','#302828','#333338'];
   for(let y=sr;y<er;y++){for(let x=sc;x<ec;x++){
     const v=tilemap[y][x];
-    ctx.fillStyle=v<0.6?colors[0]:v<0.8?colors[1]:v<0.95?colors[2]:colors[3];
-    ctx.fillRect(x*ts,y*ts,ts,ts);ctx.strokeStyle='rgba(255,255,255,0.03)';ctx.strokeRect(x*ts,y*ts,ts,ts);
+    const variant = tileVariantFromNoise(v);
+    const texture = MapTileAssets.get(floorNum, variant);
+    const dx = x*ts, dy = y*ts;
+    if(texture && texture.complete && texture.naturalWidth>0){
+      ctx.drawImage(texture, dx, dy, ts, ts);
+    }else{
+      ctx.fillStyle=colors[variant-1]||colors[0];
+      ctx.fillRect(dx,dy,ts,ts);
+    }
+    ctx.strokeStyle='rgba(255,255,255,0.03)';
+    ctx.strokeRect(dx,dy,ts,ts);
   }}
 }
 
@@ -4150,7 +4189,7 @@ function gameLoop(now){
   Game.update(dt);Game.draw(ctx);Input.endFrame();requestAnimationFrame(gameLoop);
 }
 
-loadSpriteAssets();MetaProgress.load();SpriteCache.init();Input.init();requestAnimationFrame(gameLoop);
+loadSpriteAssets();MapTileAssets.load();MetaProgress.load();SpriteCache.init();Input.init();requestAnimationFrame(gameLoop);
 
 </script>
 </body>
