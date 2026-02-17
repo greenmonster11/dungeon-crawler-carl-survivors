@@ -5,6 +5,34 @@ const redis = new Redis({
   token: process.env.KV_REST_API_TOKEN,
 });
 
+function parseIntSafe(value, fallback = 0) {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+async function getPlaytimeStats() {
+  const now = Date.now();
+  const activeCutoff = now - (120 * 1000);
+  await redis.zremrangebyscore('play:active', 0, activeCutoff);
+
+  const [stats, activeSessions] = await Promise.all([
+    redis.hgetall('play:stats'),
+    redis.zcount('play:active', activeCutoff, '+inf'),
+  ]);
+
+  const totalSeconds = parseIntSafe(stats?.totalSeconds);
+  const endedSessions = parseIntSafe(stats?.endedSessions);
+
+  return {
+    totalSeconds,
+    totalHours: Number((totalSeconds / 3600).toFixed(2)),
+    totalSessions: parseIntSafe(stats?.totalSessions),
+    endedSessions,
+    avgSessionSeconds: endedSessions > 0 ? Math.round(totalSeconds / endedSessions) : 0,
+    activeSessions: parseIntSafe(activeSessions),
+  };
+}
+
 export default async function handler(req, res) {
   // CORS preflight
   if (req.method === 'OPTIONS') {
@@ -82,9 +110,12 @@ export default async function handler(req, res) {
       }
     }
 
-    const total = await redis.zcard('leaderboard');
+    const [total, playtimeStats] = await Promise.all([
+      redis.zcard('leaderboard'),
+      getPlaytimeStats(),
+    ]);
 
-    return res.status(200).json({ entries, total, playerBest });
+    return res.status(200).json({ entries, total, playerBest, playtimeStats });
   } catch (err) {
     console.error('Leaderboard error:', err);
     return res.status(500).json({ error: 'Internal server error' });

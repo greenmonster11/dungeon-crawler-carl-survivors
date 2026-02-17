@@ -1175,11 +1175,22 @@ let leaderboardLoading = false;
 let leaderboardError = null;
 let leaderboardScrollY = 0;
 let leaderboardPlayerBest = null;
+let leaderboardPlaytime = null;
 let scoreSubmitState = 'none'; // 'none'|'prompt'|'entering'|'submitting'|'submitted'|'failed'
 let scoreSubmitName = '';
 let scoreSubmitResult = null;
 let scoreSubmitKeyboard = false; // true when virtual keyboard visible
 let scoreSubmitCursor = 0; // blink timer
+
+function formatDurationShort(totalSeconds) {
+  const sec = Math.max(0, Math.floor(totalSeconds || 0));
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
 
 function computeChecksum(name, floor, kills, level, time, bossKills, bbEarned, viewers, classId, raceId) {
   const SECRET = 'dcc_survivors_2024';
@@ -1197,6 +1208,7 @@ async function fetchLeaderboard() {
   leaderboardData = null;
   leaderboardError = null;
   leaderboardPlayerBest = null;
+  leaderboardPlaytime = null;
   try {
     const playerName = localStorage.getItem('dcc_player_name') || '';
     const url = '/api/leaderboard?limit=50' + (playerName ? '&player=' + encodeURIComponent(playerName) : '');
@@ -1209,6 +1221,7 @@ async function fetchLeaderboard() {
       const data = await res.json();
       leaderboardData = data.entries || [];
       leaderboardPlayerBest = data.playerBest || null;
+      leaderboardPlaytime = data.playtimeStats || null;
     }
   } catch(e) {
     leaderboardError = 'Network error — check your connection';
@@ -1216,6 +1229,83 @@ async function fetchLeaderboard() {
   }
   leaderboardLoading = false;
 }
+
+const Telemetry = {
+  sessionId: null,
+  active: false,
+  elapsed: 0,
+  heartbeatTimer: 0,
+  heartbeatEvery: 30,
+  lastSentSec: 0,
+
+  getOrCreatePlayerId() {
+    let playerId = localStorage.getItem('dcc_player_id');
+    if (!playerId) {
+      playerId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : `p_${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
+      localStorage.setItem('dcc_player_id', playerId);
+    }
+    return playerId;
+  },
+
+  newSessionId() {
+    return (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID().replace(/-/g, '')
+      : `s_${Date.now()}_${Math.floor(Math.random() * 1e9)}`;
+  },
+
+  async send(event, force = false) {
+    if (!this.sessionId) return;
+    const elapsedSec = Math.max(0, Math.floor(this.elapsed));
+    if (!force && event === 'heartbeat' && elapsedSec <= this.lastSentSec) return;
+
+    const payload = {
+      event,
+      sessionId: this.sessionId,
+      playerId: this.getOrCreatePlayerId(),
+      elapsedSec,
+      floor: FloorManager.floorNumber || 1,
+      kills: player ? player.killCount : 0,
+      level: player ? player.level : 1,
+    };
+
+    try {
+      await fetch('/api/telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        keepalive: event === 'end'
+      });
+      this.lastSentSec = elapsedSec;
+    } catch (e) {}
+  },
+
+  startRun() {
+    this.sessionId = this.newSessionId();
+    this.active = true;
+    this.elapsed = 0;
+    this.heartbeatTimer = 0;
+    this.lastSentSec = 0;
+    this.send('start', true);
+  },
+
+  update(dt) {
+    if (!this.active) return;
+    this.elapsed += dt;
+    this.heartbeatTimer += dt;
+    if (this.heartbeatTimer >= this.heartbeatEvery) {
+      this.heartbeatTimer = 0;
+      this.send('heartbeat');
+    }
+  },
+
+  endRun() {
+    if (!this.active) return;
+    this.active = false;
+    this.send('end', true);
+  }
+};
 
 async function submitScore() {
   if (!MetaProgress.lastRunData) { scoreSubmitState = 'failed'; return; }
@@ -1585,6 +1675,7 @@ const FloorManager = {
     this.floorNumber++;
     if (this.floorNumber > FLOOR_DEFS.length) {
       MetaProgress.endRun(this.floorNumber - 1, player ? player.killCount : 0);
+      Telemetry.endRun();
       DungeonAI.onVictory();
       Game.changeState('victory');
       return;
@@ -2567,7 +2658,7 @@ function createPlayer() {
       Sound.play('playerHit');
       ViewerChat.onPlayerDamage();
       if(this.hp>0&&this.hp<this.maxHp*0.2)DungeonAI.onLowHP();
-      if(this.hp<=0){this.hp=0;DungeonAI.onDeath();MetaProgress.endRun(FloorManager.floorNumber,this.killCount);Game.changeState('gameOver')}
+      if(this.hp<=0){this.hp=0;DungeonAI.onDeath();MetaProgress.endRun(FloorManager.floorNumber,this.killCount);Telemetry.endRun();Game.changeState('gameOver')}
     }
   };
 }
@@ -3638,6 +3729,14 @@ function drawLeaderboardScreen(ctx){
   // Title
   ctx.font=`bold ${Math.round(24*s)}px monospace`;ctx.textAlign='center';
   outlineText(ctx,'LEADERBOARD',W/2,Math.round(35*s),'#ff88cc','#440022');
+  if (leaderboardPlaytime) {
+    const total = formatDurationShort(leaderboardPlaytime.totalSeconds);
+    const avg = formatDurationShort(leaderboardPlaytime.avgSessionSeconds);
+    const active = leaderboardPlaytime.activeSessions || 0;
+    ctx.font=`${Math.round(10*s)}px monospace`;
+    ctx.fillStyle='#88ddff';
+    ctx.fillText(`PLAYTIME: ${total} total | ${avg} avg session | ${active} active now`,W/2,Math.round(49*s));
+  }
   // Back button
   const bw=Math.round(80*s),bh=Math.round(32*s),bx=Math.round(10*s),by=Math.round(10*s);
   const bHover=Input.mouse.x>=bx&&Input.mouse.x<=bx+bw&&Input.mouse.y>=by&&Input.mouse.y<=by+bh;
@@ -3746,6 +3845,16 @@ canvas.addEventListener('wheel',e=>{
     leaderboardScrollY+=e.deltaY>0?3:-3;
   }
 },{passive:false});
+
+window.addEventListener('beforeunload', () => {
+  Telemetry.endRun();
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden' && Telemetry.active) {
+    Telemetry.send('heartbeat', true);
+  }
+});
 
 // === SCORE SUBMISSION UI ===
 function drawScoreSubmitOverlay(ctx, isVictory){
@@ -3956,6 +4065,7 @@ function startNewRun(){
   ViewerChat.messages=[];ViewerChat.viewerCount=1000;ViewerChat.killStreak=0;
   DungeonAI.reset();
   MetaProgress.startRun();
+  Telemetry.startRun();
   FloorManager.init(1);generateTilemap();Spawner.reset();
   Camera.x=player.x-W/2;Camera.y=player.y-H/2;
   Game.changeState('playing');
@@ -3988,6 +4098,7 @@ const Game = {
     switch(this.state){
       case'paused':break;
       case'playing':
+        Telemetry.update(dt);
         player.update(dt);Camera.follow(player,dt);
         for(const w of player.weapons)w.update(dt,player);
         updateOrbitals(dt,player);updateCompanions(dt,player);
