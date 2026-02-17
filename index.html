@@ -88,6 +88,14 @@ window.addEventListener('resize', () => {
 // === MATH UTILITIES ===
 function dist(x1,y1,x2,y2){const dx=x2-x1,dy=y2-y1;return Math.sqrt(dx*dx+dy*dy)}
 function angle(x1,y1,x2,y2){return Math.atan2(y2-y1,x2-x1)}
+function distToSegment(px,py,x1,y1,x2,y2){
+  const dx=x2-x1,dy=y2-y1;
+  const len2=dx*dx+dy*dy;
+  if(len2<=0)return dist(px,py,x1,y1);
+  const t=clamp(((px-x1)*dx+(py-y1)*dy)/len2,0,1);
+  const cx=x1+dx*t,cy=y1+dy*t;
+  return dist(px,py,cx,cy);
+}
 function lerp(a,b,t){return a+(b-a)*t}
 function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v))}
 function rand(a,b){return Math.random()*(b-a)+a}
@@ -2024,39 +2032,99 @@ const BOSS_DEFS = {
   boroughBoss: { name:'The Hoarder', hp:600, speed:45, damage:20, w:56, h:56, color:'#cc3322', xpValue:150,
     subtitle:'Audience-tested brute', introLine:'Sponsor note: this one hoards bones and ratings.',
     auraColor:'#ff7744', telegraphColor:'#ff4422',
+    abilitySet:['groundSlam','radialBurst'],
     phases:[{hp:1,pattern:'charge'},{hp:0.5,pattern:'summon'},{hp:0.25,pattern:'enrage'}] },
   mineOverlord: { name:'Porkchop Express', hp:900, speed:35, damage:28, w:60, h:60, color:'#888844', xpValue:250,
     subtitle:'Explosive rail tyrant', introLine:'Betting market opened on structural collapse timing.',
     auraColor:'#ffcc44', telegraphColor:'#ffdd66',
+    abilitySet:['dashChain','summonRing'],
     phases:[{hp:1,pattern:'charge'},{hp:0.6,pattern:'summon'},{hp:0.3,pattern:'enrage'}] },
   frostWarden: { name:'The Iron Tangle Guardian', hp:1300, speed:40, damage:32, w:64, h:64, color:'#4488cc', xpValue:400,
     subtitle:'Cold steel sentinel', introLine:'Reminder: hypothermia deaths trend extremely well.',
     auraColor:'#88ccff', telegraphColor:'#99e6ff',
+    abilitySet:['radialBurst','summonRing'],
     phases:[{hp:1,pattern:'charge'},{hp:0.5,pattern:'summon'},{hp:0.2,pattern:'enrage'}] },
   huntMaster: { name:'The Bubble Boss', hp:1800, speed:55, damage:36, w:62, h:62, color:'#886622', xpValue:500,
     subtitle:'Predator-in-chief', introLine:'Corporate guidance: running is content, screaming is premium content.',
     auraColor:'#c8a060', telegraphColor:'#ffd788',
+    abilitySet:['dashChain','groundSlam'],
     phases:[{hp:1,pattern:'charge'},{hp:0.5,pattern:'summon'},{hp:0.2,pattern:'enrage'}] },
   pyroclast: { name:'Scolopendra', hp:2400, speed:40, damage:42, w:66, h:66, color:'#ff3300', xpValue:700,
     subtitle:'Molten alpha specimen', introLine:'Hazard disclosure: spontaneous combustion remains possible.',
     auraColor:'#ff7733', telegraphColor:'#ff9966',
+    abilitySet:['groundSlam','summonRing'],
     phases:[{hp:1,pattern:'charge'},{hp:0.6,pattern:'summon'},{hp:0.25,pattern:'enrage'}] },
   grandArchivist: { name:'The Butcher King', hp:3100, speed:38, damage:48, w:70, h:70, color:'#6644aa', xpValue:900,
     subtitle:'Curator of pain', introLine:'Library policy update: silence will not be enforced.',
     auraColor:'#aa88ff', telegraphColor:'#d2bbff',
+    abilitySet:['summonRing','radialBurst'],
     phases:[{hp:1,pattern:'summon'},{hp:0.5,pattern:'charge'},{hp:0.2,pattern:'enrage'}] },
   leviathanEcho: { name:'The Krakaren', hp:4000, speed:35, damage:55, w:76, h:76, color:'#2266aa', xpValue:1200,
     subtitle:'Depth-pressure nightmare', introLine:'Sponsor challenge: survive the splash zone.',
     auraColor:'#44bbff', telegraphColor:'#88ddff',
+    abilitySet:['dashChain','radialBurst'],
     phases:[{hp:1,pattern:'charge'},{hp:0.5,pattern:'summon'},{hp:0.15,pattern:'enrage'}] },
   theNamelessOne: { name:'The Specter of Earth', hp:5200, speed:42, damage:60, w:80, h:80, color:'#6622cc', xpValue:1600,
     subtitle:'Identity-redacted entity', introLine:'Viewer advisory: existential panic is not covered by insurance.',
     auraColor:'#bb77ff', telegraphColor:'#ee99ff',
+    abilitySet:['groundSlam','dashChain'],
     phases:[{hp:1,pattern:'summon'},{hp:0.4,pattern:'charge'},{hp:0.15,pattern:'enrage'}] },
   borantDestroyer: { name:'Borant the World Ender', hp:6000, speed:50, damage:70, w:90, h:90, color:'#ff6600', xpValue:2500,
     subtitle:'Flagship execution model', introLine:'Finale package unlocked. Please die spectacularly.',
     auraColor:'#ffaa44', telegraphColor:'#ffcc66',
+    abilitySet:['radialBurst','groundSlam','summonRing','dashChain'],
     phases:[{hp:1,pattern:'charge'},{hp:0.6,pattern:'summon'},{hp:0.3,pattern:'enrage'}] },
+};
+
+const BOSS_ABILITY_COOLDOWNS = {
+  radialBurst: 6.2,
+  groundSlam: 5.4,
+  summonRing: 9.0,
+  dashChain: 7.4,
+};
+
+const BossAbilityHandlers = {
+  radialBurst(bossEntity, target, phaseIdx) {
+    const radius = 110 + phaseIdx * 20;
+    spawnExplosion(bossEntity.x, bossEntity.y, 8, bossEntity.telegraphColor);
+    if (player && dist(bossEntity.x, bossEntity.y, player.x, player.y) <= radius) {
+      player.takeDamage(Math.floor(bossEntity.damage * 0.75));
+    }
+  },
+  groundSlam(bossEntity, target, phaseIdx) {
+    const tx = target ? target.x : bossEntity.x;
+    const ty = target ? target.y : bossEntity.y;
+    const radius = 80 + phaseIdx * 15;
+    spawnExplosion(tx, ty, 10, '#ff4422');
+    if (player && dist(tx, ty, player.x, player.y) <= radius) {
+      player.takeDamage(Math.floor(bossEntity.damage * 0.85));
+    }
+  },
+  summonRing(bossEntity) {
+    const floorEnemies = FloorManager.currentFloor ? FloorManager.currentFloor.enemies : [];
+    const count = Math.min(10, 6 + Math.floor(FloorManager.floorNumber / 2));
+    for (let i = 0; i < count; i++) {
+      const type = randomFrom(floorEnemies);
+      if (!ENEMY_DEFS[type]) continue;
+      const a = (Math.PI * 2 * i) / count;
+      const r = 120 + (Math.random() - 0.5) * 20;
+      enemies.push(createEnemy(type, bossEntity.x + Math.cos(a) * r, bossEntity.y + Math.sin(a) * r, FloorManager.currentFloor.difficultyMult));
+    }
+    spawnExplosion(bossEntity.x, bossEntity.y, 12, '#aa66ff');
+  },
+  dashChain(bossEntity, target, phaseIdx) {
+    if (!target) return;
+    const fromX = bossEntity.x, fromY = bossEntity.y;
+    const dashRange = 170 + phaseIdx * 20;
+    const a = angle(fromX, fromY, target.x, target.y);
+    const toX = clamp(fromX + Math.cos(a) * dashRange, bossEntity.w, CONFIG.FLOOR_WIDTH - bossEntity.w);
+    const toY = clamp(fromY + Math.sin(a) * dashRange, bossEntity.h, CONFIG.FLOOR_HEIGHT - bossEntity.h);
+    bossEntity.x = toX; bossEntity.y = toY;
+    spawnExplosion(toX, toY, 8, '#ffbb66');
+    if (player && distToSegment(player.x, player.y, fromX, fromY, toX, toY) < (isMobile ? 24 : 28)) {
+      player.takeDamage(Math.floor(bossEntity.damage * 0.95));
+    }
+  },
 };
 
 function createBoss(bossId, x, y, mult = 1) {
@@ -2078,6 +2146,8 @@ function createBoss(bossId, x, y, mult = 1) {
   e.introLine = def.introLine || 'The audience demands spectacle.';
   e.auraColor = def.auraColor || def.color;
   e.telegraphColor = def.telegraphColor || '#ffffff';
+  e.abilitySet = def.abilitySet || ['radialBurst', 'groundSlam'];
+  e.abilityTimers = {};
   e.currentPhase = 0;
   e.phaseTimer = 0;
   e.chargeTimer = 0;
@@ -2085,6 +2155,23 @@ function createBoss(bossId, x, y, mult = 1) {
   e.chargeTargetY = 0;
   e.charging = false;
   e.summonTimer = 0;
+  for (const abilityId of e.abilitySet) {
+    const baseCd = BOSS_ABILITY_COOLDOWNS[abilityId] || 6;
+    e.abilityTimers[abilityId] = 0.8 + Math.random() * (baseCd * 0.6);
+  }
+
+  e.tryAbilities = function(dt, target, phaseIdx) {
+    for (const abilityId of this.abilitySet) {
+      this.abilityTimers[abilityId] -= dt;
+      if (this.abilityTimers[abilityId] > 0) continue;
+      const handler = BossAbilityHandlers[abilityId];
+      if (handler) handler(this, target, phaseIdx);
+      const baseCd = BOSS_ABILITY_COOLDOWNS[abilityId] || 6;
+      const phaseScale = phaseIdx >= 2 ? 0.75 : (phaseIdx === 1 ? 0.88 : 1);
+      this.abilityTimers[abilityId] = baseCd * phaseScale;
+      break;
+    }
+  };
 
   e.update = function(dt, target) {
     this.phaseTimer += dt;
@@ -2095,6 +2182,7 @@ function createBoss(bossId, x, y, mult = 1) {
       if (hpPct <= this.phases[i].hp) { phase = this.phases[i]; phaseIdx=i; break; }
     }
     if(phaseIdx!==this.currentPhase){this.currentPhase=phaseIdx;triggerScreenFlash('#ffffff',0.2);Camera.shake=12}
+    this.tryAbilities(dt, target, phaseIdx);
 
     const spd = phase.pattern === 'enrage' ? this.speed * 1.8 : this.speed;
     this._orbHitTimer -= dt;
