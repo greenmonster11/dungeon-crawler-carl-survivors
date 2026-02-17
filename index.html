@@ -1403,6 +1403,7 @@ const Telemetry = {
 async function submitScore() {
   if (!MetaProgress.lastRunData) { scoreSubmitState = 'failed'; return; }
   scoreSubmitState = 'submitting';
+  scoreSubmitName = scoreSubmitName.trim();
   const rd = MetaProgress.lastRunData;
   const checksum = computeChecksum(scoreSubmitName, rd.floor, rd.kills, rd.level, rd.time, rd.bossKills, rd.bbEarned, rd.viewers, rd.classId, rd.raceId);
   try {
@@ -3754,8 +3755,17 @@ function drawHUD(ctx){
     const xpH=Math.round(12*s);
     drawBar(ctx,12,xpY,hpW,xpH,player.xp/player.xpToNext,'#33cc77','#082210','#55ffaa');
     ctx.font=`bold ${Math.round(10*s)}px monospace`;outlineText(ctx,`LV ${player.level}`,16,xpY+xpH*0.8,'#ffffff');
+    // Pace control button (under XP bar)
+    const pw=Math.round(78*s),ph=Math.round(14*s),px=W-pw-10,py=xpY+xpH+Math.round(2*s);
+    const pHover=Input.mouse.x>=px&&Input.mouse.x<=px+pw&&Input.mouse.y>=py&&Input.mouse.y<=py+ph;
+    ctx.fillStyle=pHover?'rgba(60,60,80,0.95)':'rgba(18,18,30,0.92)';
+    ctx.fillRect(px,py,pw,ph);
+    ctx.strokeStyle=PaceControl.getColor();ctx.lineWidth=1;ctx.strokeRect(px,py,pw,ph);
+    ctx.font=`bold ${Math.round(8*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,PaceControl.getLabel(),px+pw/2,py+Math.round(10*s),PaceControl.getColor());
+    if(pHover&&Input.mouse.clicked){PaceControl.toggle();Input.mouse.clicked=false}
     // Row 3: Floor + Timer in one line
-    const row3Y=xpY+xpH+Math.round(12*s);
+    const row3Y=xpY+xpH+ph+Math.round(6*s);
     ctx.textAlign='left';ctx.font=`bold ${Math.round(10*s)}px monospace`;
     outlineText(ctx,`F${FloorManager.floorNumber}: ${FloorManager.currentFloor.name}`,12,row3Y,'#ccaa44');
     const remaining=Math.max(0,FloorManager.currentFloor.surviveTime-FloorManager.floorTimer);
@@ -3781,23 +3791,24 @@ function drawHUD(ctx){
     ctx.font=`${Math.round(8*s)}px monospace`;
     ctx.textAlign='center';
     outlineText(ctx,contract,W/2,row5Y,'#66ccff');
-    // Pace control button
-    const pw=Math.round(78*s),ph=Math.round(16*s),px=W-pw-10,py=row5Y+Math.round(2*s);
-    const pHover=Input.mouse.x>=px&&Input.mouse.x<=px+pw&&Input.mouse.y>=py&&Input.mouse.y<=py+ph;
-    ctx.fillStyle=pHover?'rgba(60,60,80,0.95)':'rgba(18,18,30,0.92)';
-    ctx.fillRect(px,py,pw,ph);
-    ctx.strokeStyle=PaceControl.getColor();ctx.lineWidth=1;ctx.strokeRect(px,py,pw,ph);
-    ctx.font=`bold ${Math.round(8*s)}px monospace`;ctx.textAlign='center';
-    outlineText(ctx,PaceControl.getLabel(),px+pw/2,py+Math.round(11*s),PaceControl.getColor());
-    if(pHover&&Input.mouse.clicked){PaceControl.toggle();Input.mouse.clicked=false}
   } else {
     // Desktop/landscape HUD (original)
     const hpW=Math.min(220*s,W*0.28),hpH=Math.round(20*s);
     drawBar(ctx,12,10,hpW,hpH,player.hp/player.maxHp,'#dd3333','#330808','#ff5555');
     ctx.font=`bold ${Math.round(13*s)}px monospace`;ctx.textAlign='left';outlineText(ctx,`HP ${Math.ceil(player.hp)}/${player.maxHp}`,16,10+hpH*0.72,'#ffffff');
     const xpY=12+hpH+4;
-    drawBar(ctx,12,xpY,hpW,Math.round(14*s),player.xp/player.xpToNext,'#33cc77','#082210','#55ffaa');
+    const xpH2=Math.round(14*s);
+    drawBar(ctx,12,xpY,hpW,xpH2,player.xp/player.xpToNext,'#33cc77','#082210','#55ffaa');
     ctx.font=`bold ${Math.round(11*s)}px monospace`;outlineText(ctx,`LV ${player.level}`,16,xpY+Math.round(12*s),'#ffffff');
+    // Pace control button (under XP bar)
+    const pw=Math.round(96*s),ph=Math.round(20*s),px=12,py=xpY+xpH2+Math.round(4*s);
+    const pHover=Input.mouse.x>=px&&Input.mouse.x<=px+pw&&Input.mouse.y>=py&&Input.mouse.y<=py+ph;
+    ctx.fillStyle=pHover?'rgba(60,60,80,0.95)':'rgba(18,18,30,0.92)';
+    ctx.fillRect(px,py,pw,ph);
+    ctx.strokeStyle=PaceControl.getColor();ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
+    ctx.font=`bold ${Math.round(11*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,PaceControl.getLabel(),px+pw/2,py+Math.round(14*s),PaceControl.getColor());
+    if(pHover&&Input.mouse.clicked){PaceControl.toggle();Input.mouse.clicked=false}
     ctx.textAlign='center';ctx.font=`bold ${Math.round(14*s)}px monospace`;
     outlineText(ctx,`Floor ${FloorManager.floorNumber}: ${FloorManager.currentFloor.name}`,W/2,Math.round(18*s),'#ccaa44');
     const remaining=Math.max(0,FloorManager.currentFloor.surviveTime-FloorManager.floorTimer);
@@ -3825,15 +3836,6 @@ function drawHUD(ctx){
     ctx.font=`${Math.round(10*s)}px monospace`;
     ctx.textAlign='center';
     outlineText(ctx,contract,W/2,Math.round(54*s),'#66ccff');
-    // Pace control button
-    const pw=Math.round(96*s),ph=Math.round(24*s),px=W-pw-Math.round(12*s),py=Math.round(84*s);
-    const pHover=Input.mouse.x>=px&&Input.mouse.x<=px+pw&&Input.mouse.y>=py&&Input.mouse.y<=py+ph;
-    ctx.fillStyle=pHover?'rgba(60,60,80,0.95)':'rgba(18,18,30,0.92)';
-    ctx.fillRect(px,py,pw,ph);
-    ctx.strokeStyle=PaceControl.getColor();ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
-    ctx.font=`bold ${Math.round(11*s)}px monospace`;ctx.textAlign='center';
-    outlineText(ctx,PaceControl.getLabel(),px+pw/2,py+Math.round(16*s),PaceControl.getColor());
-    if(pHover&&Input.mouse.clicked){PaceControl.toggle();Input.mouse.clicked=false}
   }
 
   // Boss HP bar

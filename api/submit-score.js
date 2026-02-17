@@ -96,10 +96,10 @@ export default async function handler(req, res) {
     if (isNaN(floor) || floor < 1 || floor > 9) {
       return res.status(400).json({ error: 'Invalid floor (1-9)' });
     }
-    if (isNaN(kills) || kills < 0 || kills > 5000) {
+    if (isNaN(kills) || kills < 0 || kills > 50000) {
       return res.status(400).json({ error: 'Invalid kills' });
     }
-    if (isNaN(level) || level < 1 || level > 60) {
+    if (isNaN(level) || level < 1 || level > 100) {
       return res.status(400).json({ error: 'Invalid level' });
     }
     if (isNaN(time) || time < 20) {
