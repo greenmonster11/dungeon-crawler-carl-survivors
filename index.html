@@ -107,20 +107,22 @@ function formatScore(n){return Math.floor(n).toLocaleString()}
 
 // === SPATIAL HASH GRID ===
 const SpatialGrid = {
-  cellSize: 64, cells: {}, _key(cx,cy){return cx+','+cy},
-  clear(){this.cells={}},
+  cellSize: 64, cells: new Map(), _key(cx,cy){return (cx<<16)^cy},
+  _queryResult: [],_querySet: new Set(),
+  clear(){this.cells.clear()},
   insert(e){
     const cs=this.cellSize;
     const x0=Math.floor((e.x-e.w/2)/cs),x1=Math.floor((e.x+e.w/2)/cs);
     const y0=Math.floor((e.y-e.h/2)/cs),y1=Math.floor((e.y+e.h/2)/cs);
-    for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++){const k=this._key(cx,cy);if(!this.cells[k])this.cells[k]=[];this.cells[k].push(e)}
+    for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++){const k=this._key(cx,cy);let c=this.cells.get(k);if(!c){c=[];this.cells.set(k,c)}c.push(e)}
   },
   query(x,y,radius){
-    const cs=this.cellSize,result=new Set();
+    const cs=this.cellSize,res=this._queryResult,seen=this._querySet;
+    res.length=0;seen.clear();
     const x0=Math.floor((x-radius)/cs),x1=Math.floor((x+radius)/cs);
     const y0=Math.floor((y-radius)/cs),y1=Math.floor((y+radius)/cs);
-    for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++){const c=this.cells[this._key(cx,cy)];if(c)for(const e of c)result.add(e)}
-    return result;
+    for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++){const c=this.cells.get(this._key(cx,cy));if(c)for(let i=0;i<c.length;i++){const e=c[i];if(!seen.has(e)){seen.add(e);res.push(e)}}}
+    return res;
   },
   buildFromEnemies(){this.clear();for(const e of enemies){if(e.alive)this.insert(e)}}
 };
@@ -2990,10 +2992,10 @@ const ViewerChat = {
       ctx.fillText(nameStr, chatX, y);
       ctx.font = `${fs}px monospace`;
       ctx.fillStyle = '#cccccc';
-      const nameW=ctx.measureText(nameStr+' ').width;
-      // Truncate text if too wide for portrait
-      let txt=m.text;
-      if(isPortrait&&ctx.measureText(txt).width>maxW-nameW-10){while(txt.length>5&&ctx.measureText(txt+'..').width>maxW-nameW-10)txt=txt.slice(0,-1);txt+='..'}
+      const nameW=m._nameW||(m._nameW=ctx.measureText(nameStr+' ').width);
+      // Truncate text if too wide for portrait (cached)
+      let txt;
+      if(isPortrait){if(m._truncated===undefined){txt=m.text;if(ctx.measureText(txt).width>maxW-nameW-10){while(txt.length>5&&ctx.measureText(txt+'..').width>maxW-nameW-10)txt=txt.slice(0,-1);txt+='..'}m._truncated=txt}txt=m._truncated}else{txt=m.text}
       ctx.fillText(txt, chatX + nameW, y);
       ctx.globalAlpha = 1;
     }
@@ -3307,26 +3309,28 @@ function createWeapon(id) {
 // Melee/chain visuals
 let meleeVisuals=[], chainVisuals=[];
 function spawnMeleeVisual(x,y,r,c){meleeVisuals.push({x,y,radius:r,color:c,life:0.15,maxLife:0.15})}
-function spawnChainVisual(p,c){chainVisuals.push({points:p,color:c,life:0.2,maxLife:0.2})}
+function spawnChainVisual(p,c){const jitter=[];for(let i=0;i<p.length-1;i++)jitter.push({mx:(p[i].x+p[i+1].x)/2+(Math.random()-0.5)*20,my:(p[i].y+p[i+1].y)/2+(Math.random()-0.5)*20});chainVisuals.push({points:p,jitter,color:c,life:0.2,maxLife:0.2})}
 function updateVisuals(dt){for(let i=meleeVisuals.length-1;i>=0;i--){meleeVisuals[i].life-=dt;if(meleeVisuals[i].life<=0)meleeVisuals.splice(i,1)}for(let i=chainVisuals.length-1;i>=0;i--){chainVisuals[i].life-=dt;if(chainVisuals[i].life<=0)chainVisuals.splice(i,1)}}
 function drawVisuals(ctx){
   for(const v of meleeVisuals){const a=v.life/v.maxLife;ctx.strokeStyle=v.color;ctx.lineWidth=3;ctx.globalAlpha=a*0.6;ctx.beginPath();ctx.arc(v.x,v.y,v.radius*(1-a*0.3),0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
-  for(const v of chainVisuals){const a=v.life/v.maxLife;ctx.strokeStyle=v.color;ctx.lineWidth=2;ctx.globalAlpha=a;for(let i=0;i<v.points.length-1;i++){const p1=v.points[i],p2=v.points[i+1];ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo((p1.x+p2.x)/2+(Math.random()-0.5)*20,(p1.y+p2.y)/2+(Math.random()-0.5)*20);ctx.lineTo(p2.x,p2.y);ctx.stroke()}ctx.globalAlpha=1}
+  for(const v of chainVisuals){const a=v.life/v.maxLife;ctx.strokeStyle=v.color;ctx.lineWidth=2;ctx.globalAlpha=a;for(let i=0;i<v.points.length-1;i++){const p1=v.points[i],p2=v.points[i+1],j=v.jitter[i];ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(j.mx,j.my);ctx.lineTo(p2.x,p2.y);ctx.stroke()}ctx.globalAlpha=1}
 }
 
 // === ORBITAL SYSTEM ===
 function updateOrbitals(dt,owner){
-  orbitals=[];
+  let oi=0;
   for(const w of owner.weapons){
     if(w.def.type!=='orbital')continue;
     if(!w._angle)w._angle=0;w._angle+=w.def.rotationSpeed*dt;
     for(let i=0;i<w.orbCount;i++){
       const a=w._angle+(Math.PI*2/w.orbCount)*i;
       const ox=owner.x+Math.cos(a)*w.orbitRadius, oy=owner.y+Math.sin(a)*w.orbitRadius;
-      orbitals.push({x:ox,y:oy,weapon:w,owner});
+      if(oi<orbitals.length){orbitals[oi].x=ox;orbitals[oi].y=oy;orbitals[oi].weapon=w;orbitals[oi].owner=owner}else{orbitals.push({x:ox,y:oy,weapon:w,owner})}
+      oi++;
       for(const e of SpatialGrid.query(ox,oy,18)){if(!e.alive)continue;if(dist(ox,oy,e.x,e.y)<18){if(!e._orbHitTimer||e._orbHitTimer<=0){e.takeDamage(w.damage*owner.meleeDmgMult,angle(ox,oy,e.x,e.y),owner,'#aaccff');e._orbHitTimer=0.3;Sound.play('hit')}}}
     }
   }
+  orbitals.length=oi;
 }
 function drawOrbitals(ctx){for(const o of orbitals){if(SpriteCache.has('holyOrb')){SpriteCache.draw(ctx,'holyOrb',o.x,o.y,1.5)}else{ctx.fillStyle=o.weapon.def.color;ctx.beginPath();ctx.arc(o.x,o.y,8,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffffff';ctx.beginPath();ctx.arc(o.x,o.y,4,0,Math.PI*2);ctx.fill()}}}
 
@@ -3655,8 +3659,6 @@ function drawGround(ctx){
         ctx.fillStyle=colors[variant-1]||colors[0];
         ctx.fillRect(dx,dy,ts,ts);
       }
-      ctx.strokeStyle='rgba(255,255,255,0.03)';
-      ctx.strokeRect(dx,dy,ts,ts);
     }
   }}
 }
