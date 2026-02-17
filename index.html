@@ -1132,7 +1132,7 @@ const MetaProgress = {
     unlockedRaces: ['human'],
     unlockedCompanions: [],
     permUpgrades: { damage:0, maxHp:0, speed:0, xpGain:0, luck:0 },
-    stats: { totalRuns:0, bestFloor:1, totalKills:0, totalPlayTime:0, bossesDefeated:0 },
+    stats: { totalRuns:0, bestFloor:1, totalKills:0, totalPlayTime:0, bossesDefeated:0, totalContractsCompleted:0, totalSponsorBB:0 },
     runBBCounter: 0,
   },
   data: null,
@@ -1147,6 +1147,11 @@ const MetaProgress = {
     } catch(e) { this.data = JSON.parse(JSON.stringify(this._defaults)); }
     for (const key of Object.keys(this._defaults)) {
       if (!(key in this.data)) this.data[key] = JSON.parse(JSON.stringify(this._defaults[key]));
+    }
+    if (this.data.stats) {
+      for (const key of Object.keys(this._defaults.stats)) {
+        if (!(key in this.data.stats)) this.data.stats[key] = this._defaults.stats[key];
+      }
     }
   },
   save() { try { localStorage.setItem('dcc_survivors_meta', JSON.stringify(this.data)); } catch(e) {} },
@@ -1166,6 +1171,10 @@ const MetaProgress = {
     this.data.stats.totalKills += kills;
     this.data.stats.totalPlayTime += playTime;
     this.data.stats.bossesDefeated += this.runBossKills;
+    const contractsCompleted = ShowDirector ? ShowDirector.runContractsCompleted : 0;
+    const sponsorBBEarned = ShowDirector ? ShowDirector.runSponsorBB : 0;
+    this.data.stats.totalContractsCompleted += contractsCompleted;
+    this.data.stats.totalSponsorBB += sponsorBBEarned;
     // Capture run data for leaderboard submission
     this.lastRunData = {
       floor: floorReached,
@@ -1179,9 +1188,21 @@ const MetaProgress = {
       raceId: selectedRace,
       victory: floorReached >= FLOOR_DEFS.length
     };
+    const peakViewers = ViewerChat ? ViewerChat.viewerPeak : ViewerChat.viewerCount;
+    const paceAt2xSec = PaceControl ? PaceControl.timeAt2x : 0;
+    this.lastBroadcastReport = {
+      peakViewers,
+      contractsCompleted,
+      contractsOffered: ShowDirector ? ShowDirector.runContractsOffered : 0,
+      contractFailures: ShowDirector ? ShowDirector.runContractsFailed : 0,
+      sponsorBBEarned,
+      paceAt2xSec,
+      paceAt2xPct: playTime > 0 ? Math.round((paceAt2xSec / playTime) * 100) : 0,
+      runSeconds: Math.round(playTime),
+    };
     this.save();
   },
-  startRun() { this.runKillCounter = 0; this.runBossKills = 0; this.runStartTime = performance.now(); this.data.runBBCounter=0; },
+  startRun() { this.runKillCounter = 0; this.runBossKills = 0; this.runStartTime = performance.now(); this.data.runBBCounter=0; this.lastBroadcastReport=null; },
   getPermDamageMult() { return 1 + this.data.permUpgrades.damage * 0.02; },
   getPermMaxHpBonus() { return this.data.permUpgrades.maxHp * 5; },
   getPermSpeedMult() { return 1 + this.data.permUpgrades.speed * 0.03; },
@@ -1479,6 +1500,7 @@ const Input = {
 
 const PaceControl = {
   multiplier: 1,
+  timeAt2x: 0,
   toggle() {
     this.multiplier = this.multiplier === 1 ? 2 : 1;
     const mode = this.multiplier === 2 ? '2x pacing enabled' : '1x pacing enabled';
@@ -1486,6 +1508,10 @@ const PaceControl = {
   },
   reset() {
     this.multiplier = 1;
+    this.timeAt2x = 0;
+  },
+  track(dt) {
+    if (this.multiplier === 2) this.timeAt2x += dt;
   },
   getLabel() {
     return this.multiplier === 2 ? 'PACE 2x' : 'PACE 1x';
@@ -2522,6 +2548,7 @@ const ViewerChat = {
   killStreak: 0,
   killStreakTimer: 0,
   viewerCount: 1000,
+  viewerPeak: 1000,
   viewerRating: 1,
 
   PERSONAS: {
@@ -2618,6 +2645,7 @@ const ViewerChat = {
       if (this.messages[i].timer <= 0) this.messages.splice(i, 1);
     }
     // Update viewer rating (1-5 stars)
+    this.viewerPeak = Math.max(this.viewerPeak, this.viewerCount);
     this.viewerRating = clamp(Math.floor(this.viewerCount / 2000) + 1, 1, 5);
   },
 
@@ -2659,6 +2687,10 @@ const ShowDirector = {
   floorStartViewers: 0,
   floorDamageTaken: 0,
   bossSpawnTimer: null,
+  runContractsOffered: 0,
+  runContractsCompleted: 0,
+  runContractsFailed: 0,
+  runSponsorBB: 0,
 
   reset() {
     this.active = false;
@@ -2668,6 +2700,10 @@ const ShowDirector = {
     this.floorStartViewers = 0;
     this.floorDamageTaken = 0;
     this.bossSpawnTimer = null;
+    this.runContractsOffered = 0;
+    this.runContractsCompleted = 0;
+    this.runContractsFailed = 0;
+    this.runSponsorBB = 0;
   },
 
   pickObjective(floorNum) {
@@ -2704,6 +2740,7 @@ const ShowDirector = {
     this.floorStartKills = player ? player.killCount : 0;
     this.floorStartViewers = ViewerChat.viewerCount;
     this.bossSpawnTimer = null;
+    this.runContractsOffered += 1;
 
     const picked = this.pickObjective(floorNum);
     this.objective = {
@@ -2751,6 +2788,7 @@ const ShowDirector = {
     if (this.bossSpawnTimer !== null && this.bossSpawnTimer <= 45) {
       const bonus = 8;
       MetaProgress.addBB(bonus);
+      this.runSponsorBB += bonus;
       ViewerChat.viewerCount += 450;
       ViewerChat.post('ModeratorBot', `Speed kill bonus: +${bonus} BB`, '#ffdd44');
     }
@@ -2761,7 +2799,9 @@ const ShowDirector = {
     if (this.objective.progress < this.objective.target) return;
 
     this.objective.completed = true;
+    this.runContractsCompleted += 1;
     MetaProgress.addBB(this.objective.rewardBB);
+    this.runSponsorBB += this.objective.rewardBB;
     ViewerChat.viewerCount += this.objective.rewardViewers;
     DungeonAI.queue(
       'SPONSOR CONTRACT COMPLETE',
@@ -2775,6 +2815,7 @@ const ShowDirector = {
   onFloorComplete() {
     if (!this.objective || this.objective.completed || this.objective.failed) return;
     this.objective.failed = true;
+    this.runContractsFailed += 1;
     ViewerChat.viewerCount = Math.max(400, ViewerChat.viewerCount - 450);
     ViewerChat.post('BorantOfficial', 'Contract failed. Audience confidence reduced.', '#ff6666');
   },
@@ -3961,7 +4002,7 @@ function drawStatsScreen(ctx){
   const st=MetaProgress.data.stats;
   const mins=Math.floor(st.totalPlayTime/60),secs=Math.floor(st.totalPlayTime%60);
   ctx.font=`bold ${Math.round((isPortrait?12:14)*sc)}px monospace`;ctx.fillStyle='#ddd';
-  const lines=[`Total Runs: ${st.totalRuns}`,`Best Floor: ${st.bestFloor}`,`Total Kills: ${st.totalKills}`,`Play Time: ${mins}m ${secs}s`,`Bosses Defeated: ${st.bossesDefeated}`,`Bezos Boxes: ${MetaProgress.data.bezosBoxes}`];
+  const lines=[`Total Runs: ${st.totalRuns}`,`Best Floor: ${st.bestFloor}`,`Total Kills: ${st.totalKills}`,`Play Time: ${mins}m ${secs}s`,`Bosses Defeated: ${st.bossesDefeated}`,`Contracts Completed: ${st.totalContractsCompleted||0}`,`Sponsor BB Earned: ${st.totalSponsorBB||0}`,`Bezos Boxes: ${MetaProgress.data.bezosBoxes}`];
   const lineH=Math.round(Math.min(isPortrait?26*sc:32*sc,(H-160)/lines.length));
   lines.forEach((l,i)=>ctx.fillText(l,W/2,Math.round(H*0.22)+i*lineH));
   // Perm upgrades
@@ -4272,7 +4313,14 @@ function drawGameOverScreen(ctx){
   ctx.font=`bold ${Math.round((isPortrait?11:14)*sc)}px monospace`;outlineText(ctx,'The show continues without you.',W/2,H/2-Math.round(52*sc),'#999');
   ctx.font=`bold ${Math.round((isPortrait?12:14)*sc)}px monospace`;ctx.fillStyle='#ddd';
   const lh=Math.round((isPortrait?20:22)*sc);
-  [`Level: ${player.level}`,`Floor: ${FloorManager.floorNumber}`,`Kills: ${player.killCount}`,`Viewers: ${formatNumber(ViewerChat.viewerCount)}`,`BB: ${MetaProgress.data.bezosBoxes}`].forEach((s,i)=>ctx.fillText(s,W/2,H/2-Math.round(16*sc)+i*lh));
+  const report = MetaProgress.lastBroadcastReport;
+  const lines = [`Level: ${player.level}`,`Floor: ${FloorManager.floorNumber}`,`Kills: ${player.killCount}`,`Viewers: ${formatNumber(ViewerChat.viewerCount)}`,`BB: ${MetaProgress.data.bezosBoxes}`];
+  if(report){
+    lines.push(`Peak Viewers: ${formatNumber(report.peakViewers)}`);
+    lines.push(`Contracts: ${report.contractsCompleted}/${report.contractsOffered}  (+${report.sponsorBBEarned} BB)`);
+    lines.push(`Pace 2x Usage: ${report.paceAt2xPct}%`);
+  }
+  lines.forEach((s,i)=>ctx.fillText(s,W/2,H/2-Math.round(16*sc)+i*lh));
   // Score submission UI (replaces simple click-to-restart)
   drawScoreSubmitOverlay(ctx, false);
 }
@@ -4289,7 +4337,14 @@ function drawVictoryScreen(ctx){
   ctx.font=`bold ${Math.round((isPortrait?13:16)*sc)}px monospace`;outlineText(ctx,'Carl ascends. The show goes on.',W/2,H/2-Math.round(50*sc),'#44ffaa');
   ctx.font=`bold ${Math.round((isPortrait?12:14)*sc)}px monospace`;ctx.fillStyle='#ddd';
   const lh=Math.round((isPortrait?20:22)*sc);
-  [`Level: ${player.level}`,`Floors: ${FloorManager.floorNumber}`,`Kills: ${player.killCount}`,`Viewers: ${formatNumber(ViewerChat.viewerCount)}`,`Rating: ${'*'.repeat(ViewerChat.viewerRating)}`].forEach((s,i)=>ctx.fillText(s,W/2,H/2-Math.round(16*sc)+i*lh));
+  const report = MetaProgress.lastBroadcastReport;
+  const lines = [`Level: ${player.level}`,`Floors: ${FloorManager.floorNumber}`,`Kills: ${player.killCount}`,`Viewers: ${formatNumber(ViewerChat.viewerCount)}`,`Rating: ${'*'.repeat(ViewerChat.viewerRating)}`];
+  if(report){
+    lines.push(`Peak Viewers: ${formatNumber(report.peakViewers)}`);
+    lines.push(`Contracts: ${report.contractsCompleted}/${report.contractsOffered}  (+${report.sponsorBBEarned} BB)`);
+    lines.push(`Pace 2x Usage: ${report.paceAt2xPct}%`);
+  }
+  lines.forEach((s,i)=>ctx.fillText(s,W/2,H/2-Math.round(16*sc)+i*lh));
   // Score submission UI (replaces simple click-to-restart)
   drawScoreSubmitOverlay(ctx, true);
 }
@@ -4327,7 +4382,7 @@ function startNewRun(){
   }
   enemies=[];projectiles=[];pickups=[];orbitals=[];particles=[];meleeVisuals=[];chainVisuals=[];AmbientFX.particles=[];bossWarning.active=false;
   pendingLevelUps=0;levelUpChoices=[];lootPopup=null;boss=null;
-  ViewerChat.messages=[];ViewerChat.viewerCount=1000;ViewerChat.killStreak=0;
+  ViewerChat.messages=[];ViewerChat.viewerCount=1000;ViewerChat.viewerPeak=1000;ViewerChat.killStreak=0;
   DungeonAI.reset();
   ShowDirector.reset();
   PaceControl.reset();
@@ -4365,6 +4420,7 @@ const Game = {
     switch(this.state){
       case'paused':break;
       case'playing':
+        PaceControl.track(dt);
         const simDt=Math.min(dt*PaceControl.multiplier,0.09);
         Telemetry.update(simDt);
         ShowDirector.update(simDt);
