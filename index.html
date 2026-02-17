@@ -147,20 +147,29 @@ function loadSpriteAssets(){
 const MAP_TILE_VARIANTS = 4;
 const MapTileAssets = {
   tiles: {},
+  bitmaps: {},
   load() {
+    const ts = CONFIG.TILE_SIZE;
     for (let floor = 1; floor <= 9; floor++) {
       for (let variant = 1; variant <= MAP_TILE_VARIANTS; variant++) {
         const key = `${floor}:${variant}`;
         const img = new Image();
         img.src = `assets/maps/floor${floor}_tile${variant}.svg`;
         this.tiles[key] = img;
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = ts; c.height = ts;
+          c.getContext('2d').drawImage(img, 0, 0, ts, ts);
+          this.bitmaps[key] = c;
+        };
       }
     }
   },
   get(floor, variant) {
     const f = clamp(floor || 1, 1, 9);
     const v = clamp(variant || 1, 1, MAP_TILE_VARIANTS);
-    return this.tiles[`${f}:${v}`];
+    const key = `${f}:${v}`;
+    return this.bitmaps[key] || this.tiles[key];
   }
 };
 
@@ -1622,12 +1631,11 @@ function spawnDeathPop(x,y,w,h,color){
 }
 // Ambient floor particles
 const AmbientFX={
-  timer:0, particles:[],
+  timer:0, particles:[], maxParticles: isMobile ? 55 : 120,
   update(dt){
     this.timer-=dt;
-    if(this.timer<=0&&FloorManager.currentFloor){
+    if(this.timer<=0&&FloorManager.currentFloor&&this.particles.length<this.maxParticles){
       this.timer=isMobile?0.34:0.15;
-      if(isMobile&&this.particles.length>55)return;
       const fn=FloorManager.floorNumber;
       const cx=Camera.x+Math.random()*W,cy=Camera.y+Math.random()*H;
       if(fn===3)this.particles.push({x:cx,y:cy,vy:20+Math.random()*30,vx:(Math.random()-0.5)*15,life:3,maxLife:3,size:2,color:'#ddeeff',type:'snow'});
@@ -1635,15 +1643,15 @@ const AmbientFX={
       else if(fn===7)this.particles.push({x:cx,y:cy+H*0.9,vy:-15-Math.random()*20,vx:(Math.random()-0.5)*8,life:2.5,maxLife:2.5,size:3,color:'#88bbff',type:'bubble'});
       else if(fn===8)this.particles.push({x:cx,y:cy,vy:(Math.random()-0.5)*10,vx:(Math.random()-0.5)*10,life:2,maxLife:2,size:1+Math.random()*2,color:'#6622cc',type:'void'});
     }
-    for(let i=this.particles.length-1;i>=0;i--){const p=this.particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life<=0)this.particles.splice(i,1)}
+    let w=0;for(let i=0;i<this.particles.length;i++){const p=this.particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(p.life>0)this.particles[w++]=p}this.particles.length=w;
   },
   draw(ctx){
     for(const p of this.particles){
       const a=clamp(p.life/p.maxLife,0,1)*0.4;ctx.globalAlpha=a;ctx.fillStyle=p.color;
       if(p.type==='bubble'){ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill()}
       else ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size);
-      ctx.globalAlpha=1;
     }
+    ctx.globalAlpha=1;
   }
 };
 // Boss intro warning text
@@ -1667,7 +1675,7 @@ function drawBossWarning(ctx){
 let screenFlash={active:false,timer:0,color:'#ffffff'};
 function triggerScreenFlash(color,dur){screenFlash={active:true,timer:dur||0.15,maxTimer:dur||0.15,color:color||'#ffffff'}}
 function drawScreenFlash(ctx){if(!screenFlash.active)return;screenFlash.timer-=1/60;const a=clamp(screenFlash.timer/screenFlash.maxTimer,0,1)*0.4;ctx.globalAlpha=a;ctx.fillStyle=screenFlash.color;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;if(screenFlash.timer<=0)screenFlash.active=false}
-function updateParticles(dt){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=p.gravity*dt;p.life-=dt;if(p.life<=0)particles.splice(i,1)}}
+function updateParticles(dt){let w=0;for(let i=0;i<particles.length;i++){const p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=p.gravity*dt;p.life-=dt;if(p.life>0)particles[w++]=p}particles.length=w}
 function drawParticles(ctx){for(const p of particles){const a=clamp(p.life/p.maxLife,0,1);if(p.type==='text'){ctx.globalAlpha=a;ctx.font=`bold ${p.size}px monospace`;ctx.textAlign='center';outlineText(ctx,p.text,p.x,p.y,p.color)}else{const sz=p.shrink?p.size*a:p.size;ctx.globalAlpha=a;ctx.fillStyle=p.color;ctx.fillRect(p.x-sz/2,p.y-sz/2,sz,sz)}}ctx.globalAlpha=1}
 
 let bossTelegraphs = [];
@@ -3310,7 +3318,7 @@ function createWeapon(id) {
 let meleeVisuals=[], chainVisuals=[];
 function spawnMeleeVisual(x,y,r,c){meleeVisuals.push({x,y,radius:r,color:c,life:0.15,maxLife:0.15})}
 function spawnChainVisual(p,c){const jitter=[];for(let i=0;i<p.length-1;i++)jitter.push({mx:(p[i].x+p[i+1].x)/2+(Math.random()-0.5)*20,my:(p[i].y+p[i+1].y)/2+(Math.random()-0.5)*20});chainVisuals.push({points:p,jitter,color:c,life:0.2,maxLife:0.2})}
-function updateVisuals(dt){for(let i=meleeVisuals.length-1;i>=0;i--){meleeVisuals[i].life-=dt;if(meleeVisuals[i].life<=0)meleeVisuals.splice(i,1)}for(let i=chainVisuals.length-1;i>=0;i--){chainVisuals[i].life-=dt;if(chainVisuals[i].life<=0)chainVisuals.splice(i,1)}}
+function updateVisuals(dt){let w=0;for(let i=0;i<meleeVisuals.length;i++){meleeVisuals[i].life-=dt;if(meleeVisuals[i].life>0)meleeVisuals[w++]=meleeVisuals[i]}meleeVisuals.length=w;w=0;for(let i=0;i<chainVisuals.length;i++){chainVisuals[i].life-=dt;if(chainVisuals[i].life>0)chainVisuals[w++]=chainVisuals[i]}chainVisuals.length=w}
 function drawVisuals(ctx){
   for(const v of meleeVisuals){const a=v.life/v.maxLife;ctx.strokeStyle=v.color;ctx.lineWidth=3;ctx.globalAlpha=a*0.6;ctx.beginPath();ctx.arc(v.x,v.y,v.radius*(1-a*0.3),0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1}
   for(const v of chainVisuals){const a=v.life/v.maxLife;ctx.strokeStyle=v.color;ctx.lineWidth=2;ctx.globalAlpha=a;for(let i=0;i<v.points.length-1;i++){const p1=v.points[i],p2=v.points[i+1],j=v.jitter[i];ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(j.mx,j.my);ctx.lineTo(p2.x,p2.y);ctx.stroke()}ctx.globalAlpha=1}
