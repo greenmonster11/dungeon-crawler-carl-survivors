@@ -1626,6 +1626,7 @@ const FloorManager = {
     ViewerChat.post('ModeratorBot', `FLOOR ${floorNum}: ${this.currentFloor.name}`, '#ffdd44');
     if(floorNum>1)ViewerChat.post('ZevThePR','New floor! Ratings climbing!','#44ddff');
     DungeonAI.onFloorEnter(floorNum);
+    ShowDirector.onFloorStart(floorNum);
     Music.play('floor'+floorNum);
   },
 
@@ -1654,6 +1655,7 @@ const FloorManager = {
     // Check boss defeated
     if (boss && !boss.alive && !this.bossDefeated) {
       this.bossDefeated = true;
+      ShowDirector.onBossDefeated();
       ViewerChat.post('HighRoller', 'BOSS DOWN! Collect your bezos boxes!', '#ffaa44');
       ViewerChat.post('PrincessPosse', 'POSSE WINS! LETS GOOOO', '#ff88cc');
       Music.play('floor'+this.floorNumber);
@@ -1673,6 +1675,7 @@ const FloorManager = {
     const bossY = this.stairwellY + (Math.random() - 0.5) * 100;
     boss = createBoss(this.currentFloor.bossId, bossX, bossY, this.currentFloor.difficultyMult);
     enemies.push(boss);
+    ShowDirector.onBossSpawn();
     Sound.play('bossRoar');
     Camera.shake = 15;
     Music.play('boss');
@@ -1691,6 +1694,7 @@ const FloorManager = {
   },
 
   descendToNextFloor() {
+    ShowDirector.onFloorComplete();
     MetaProgress.onFloorClear();
     this.floorNumber++;
     if (this.floorNumber > FLOOR_DEFS.length) {
@@ -2553,6 +2557,7 @@ const ViewerChat = {
     this.killStreak++;
     this.killStreakTimer = 2;
     this.viewerCount += randInt(5, 20);
+    ShowDirector.onKill();
     if (this.killStreak >= 10 && this.killStreak % 10 === 0) {
       const msg = randomFrom(this.MULTIKILL_MESSAGES);
       this.post(msg[0], msg[1] + ` (${this.killStreak} streak!)`);
@@ -2563,6 +2568,7 @@ const ViewerChat = {
   },
 
   onPlayerDamage() {
+    ShowDirector.onDamage();
     if (Math.random() < 0.25) {
       const msg = randomFrom(this.DAMAGE_MESSAGES);
       this.post(msg[0], msg[1]);
@@ -2620,6 +2626,167 @@ const ViewerChat = {
       ctx.fillText(txt, chatX + nameW, y);
       ctx.globalAlpha = 1;
     }
+  }
+};
+
+// === SHOW DIRECTOR (RATINGS + SPONSOR OBJECTIVES) ===
+const ShowDirector = {
+  active: false,
+  objective: null,
+  timeSinceKill: 0,
+  floorStartKills: 0,
+  floorStartViewers: 0,
+  floorDamageTaken: 0,
+  bossSpawnTimer: null,
+
+  reset() {
+    this.active = false;
+    this.objective = null;
+    this.timeSinceKill = 0;
+    this.floorStartKills = 0;
+    this.floorStartViewers = 0;
+    this.floorDamageTaken = 0;
+    this.bossSpawnTimer = null;
+  },
+
+  pickObjective(floorNum) {
+    const objectivePool = [
+      {
+        id: 'kill_count',
+        label: 'Sponsor Objective: Eliminate {target} hostiles this floor',
+        target: 12 + floorNum * 3,
+        rewardBB: 20 + floorNum * 5,
+        rewardViewers: 600 + floorNum * 120,
+      },
+      {
+        id: 'crowd_gain',
+        label: 'Sponsor Objective: Gain {target} viewers this floor',
+        target: 700 + floorNum * 220,
+        rewardBB: 18 + floorNum * 5,
+        rewardViewers: 800 + floorNum * 140,
+      },
+      {
+        id: 'streak',
+        label: 'Sponsor Objective: Reach a {target} kill streak',
+        target: 8 + floorNum,
+        rewardBB: 22 + floorNum * 5,
+        rewardViewers: 1000 + floorNum * 150,
+      }
+    ];
+    return randomFrom(objectivePool);
+  },
+
+  onFloorStart(floorNum) {
+    this.active = true;
+    this.timeSinceKill = 0;
+    this.floorDamageTaken = 0;
+    this.floorStartKills = player ? player.killCount : 0;
+    this.floorStartViewers = ViewerChat.viewerCount;
+    this.bossSpawnTimer = null;
+
+    const picked = this.pickObjective(floorNum);
+    this.objective = {
+      ...picked,
+      progress: 0,
+      completed: false,
+      failed: false,
+    };
+
+    const objectiveText = picked.label.replace('{target}', picked.target);
+    DungeonAI.queue(`SPONSOR CONTRACT: FLOOR ${floorNum}`, objectiveText, '#44ddff', 4.2);
+    ViewerChat.post('BorantOfficial', objectiveText, '#44ddff');
+  },
+
+  onKill() {
+    this.timeSinceKill = 0;
+    if (!this.active || !this.objective || this.objective.completed || this.objective.failed) return;
+
+    const floorKills = Math.max(0, (player ? player.killCount : 0) - this.floorStartKills);
+    const viewerGain = Math.max(0, ViewerChat.viewerCount - this.floorStartViewers);
+
+    if (this.objective.id === 'kill_count') {
+      this.objective.progress = floorKills;
+    } else if (this.objective.id === 'crowd_gain') {
+      this.objective.progress = viewerGain;
+    } else if (this.objective.id === 'streak') {
+      this.objective.progress = ViewerChat.killStreak;
+    }
+
+    this.checkComplete();
+  },
+
+  onDamage() {
+    if (!this.active) return;
+    this.floorDamageTaken += 1;
+  },
+
+  onBossSpawn() {
+    if (!this.active) return;
+    this.bossSpawnTimer = 0;
+  },
+
+  onBossDefeated() {
+    if (!this.active || !this.objective) return;
+    if (this.bossSpawnTimer !== null && this.bossSpawnTimer <= 45) {
+      const bonus = 8;
+      MetaProgress.addBB(bonus);
+      ViewerChat.viewerCount += 450;
+      ViewerChat.post('ModeratorBot', `Speed kill bonus: +${bonus} BB`, '#ffdd44');
+    }
+  },
+
+  checkComplete() {
+    if (!this.objective || this.objective.completed || this.objective.failed) return;
+    if (this.objective.progress < this.objective.target) return;
+
+    this.objective.completed = true;
+    MetaProgress.addBB(this.objective.rewardBB);
+    ViewerChat.viewerCount += this.objective.rewardViewers;
+    DungeonAI.queue(
+      'SPONSOR CONTRACT COMPLETE',
+      `Payout: +${this.objective.rewardBB} BB`,
+      '#44ffaa',
+      3.6
+    );
+    ViewerChat.post('BorantOfficial', 'Contract fulfilled. Bonus authorized.', '#44ffaa');
+  },
+
+  onFloorComplete() {
+    if (!this.objective || this.objective.completed || this.objective.failed) return;
+    this.objective.failed = true;
+    ViewerChat.viewerCount = Math.max(400, ViewerChat.viewerCount - 450);
+    ViewerChat.post('BorantOfficial', 'Contract failed. Audience confidence reduced.', '#ff6666');
+  },
+
+  update(dt) {
+    if (!this.active) return;
+    this.timeSinceKill += dt;
+    if (this.bossSpawnTimer !== null) this.bossSpawnTimer += dt;
+
+    if (this.objective && !this.objective.completed && !this.objective.failed) {
+      if (this.objective.id === 'crowd_gain') {
+        this.objective.progress = Math.max(0, ViewerChat.viewerCount - this.floorStartViewers);
+      } else if (this.objective.id === 'streak') {
+        this.objective.progress = ViewerChat.killStreak;
+      }
+      this.checkComplete();
+    }
+
+    // Ratings pressure: prolonged low-action windows drain audience.
+    if (this.timeSinceKill > 12) {
+      const drain = Math.ceil((this.timeSinceKill - 12) * 0.2);
+      ViewerChat.viewerCount = Math.max(300, ViewerChat.viewerCount - drain);
+      if (Math.random() < 0.003) {
+        ViewerChat.post('ModeratorBot', 'Action drought detected. Ratings slipping.', '#ff8844');
+      }
+    }
+  },
+
+  objectiveText() {
+    if (!this.objective) return 'No contract';
+    const base = this.objective.label.replace('{target}', this.objective.target);
+    const status = this.objective.completed ? 'COMPLETED' : (this.objective.failed ? 'FAILED' : `${this.objective.progress}/${this.objective.target}`);
+    return `${base} [${status}]`;
   }
 };
 
@@ -3186,6 +3353,12 @@ function drawHUD(ctx){
     ctx.textAlign='left';outlineText(ctx,`K:${player.killCount}`,12,row4Y,'#cccccc');
     ctx.textAlign='center';outlineText(ctx,`${formatNumber(ViewerChat.viewerCount)} ${'*'.repeat(ViewerChat.viewerRating)}`,W/2,row4Y,'#ff88cc');
     ctx.textAlign='right';outlineText(ctx,`BB:${MetaProgress.data.runBBCounter||0}`,W-12,row4Y,'#ffcc44');
+    const row5Y=row4Y+Math.round(12*s);
+    let contract=ShowDirector.objectiveText();
+    if(contract.length>68)contract=contract.slice(0,66)+'..';
+    ctx.font=`${Math.round(8*s)}px monospace`;
+    ctx.textAlign='center';
+    outlineText(ctx,contract,W/2,row5Y,'#66ccff');
   } else {
     // Desktop/landscape HUD (original)
     const hpW=Math.min(220*s,W*0.28),hpH=Math.round(20*s);
@@ -3210,6 +3383,11 @@ function drawHUD(ctx){
     outlineText(ctx,'*'.repeat(ViewerChat.viewerRating),rCol,Math.round(57*s),'#ffcc44');
     ctx.font=`bold ${Math.round(11*s)}px monospace`;
     outlineText(ctx,`BB: ${MetaProgress.data.runBBCounter||0}`,rCol,Math.round(72*s),'#ffcc44');
+    let contract=ShowDirector.objectiveText();
+    if(contract.length>84)contract=contract.slice(0,82)+'..';
+    ctx.font=`${Math.round(10*s)}px monospace`;
+    ctx.textAlign='center';
+    outlineText(ctx,contract,W/2,Math.round(54*s),'#66ccff');
   }
 
   // Boss HP bar
@@ -4102,6 +4280,7 @@ function startNewRun(){
   pendingLevelUps=0;levelUpChoices=[];lootPopup=null;boss=null;
   ViewerChat.messages=[];ViewerChat.viewerCount=1000;ViewerChat.killStreak=0;
   DungeonAI.reset();
+  ShowDirector.reset();
   MetaProgress.startRun();
   Telemetry.startRun();
   FloorManager.init(1);generateTilemap();Spawner.reset();
@@ -4137,6 +4316,7 @@ const Game = {
       case'paused':break;
       case'playing':
         Telemetry.update(dt);
+        ShowDirector.update(dt);
         player.update(dt);Camera.follow(player,dt);
         for(const w of player.weapons)w.update(dt,player);
         updateOrbitals(dt,player);updateCompanions(dt,player);
