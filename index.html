@@ -1561,11 +1561,11 @@ let boss = null;
 
 // === FLOOR DEFINITIONS ===
 const FLOOR_DEFS = [
-  { number:1, name:'The Tutorial', biome:'cityRuins',
+  { number:1, name:'Dungeon Entrance', biome:'cityRuins',
     colors:['#2a2a2e','#252530','#302828','#333338'],
     enemies:['crawler','giantRat','shambler','goblinScout'],
     bossId:'boroughBoss', surviveTime:90, difficultyMult:1.0, particleColor:'#665544' },
-  { number:2, name:'The Over City', biome:'goblinMines',
+  { number:2, name:'Urban Collapse', biome:'goblinMines',
     colors:['#332211','#2a1a0a','#3a2a1a','#443322'],
     enemies:['goblinMiner','caveBat','rockGolem','goblinShaman'],
     bossId:'mineOverlord', surviveTime:110, difficultyMult:1.4, particleColor:'#ffaa44' },
@@ -1573,27 +1573,27 @@ const FLOOR_DEFS = [
     colors:['#1a2a3a','#1e2e3e','#223344','#2a3a4a'],
     enemies:['frostSpider','iceElemental','snowWolf','frozenWraith'],
     bossId:'frostWarden', surviveTime:130, difficultyMult:1.9, particleColor:'#88ccff' },
-  { number:4, name:'The Bubbles', biome:'jungle',
+  { number:4, name:'The Blooming Wilds', biome:'jungle',
     colors:['#1a3a1a','#224422','#2a4a2a','#1a331a'],
     enemies:['jungleCat','poisonFrog','vineStrangler','tribalHunter'],
     bossId:'huntMaster', surviveTime:150, difficultyMult:2.5, particleColor:'#44aa22' },
-  { number:5, name:'The Hunting Grounds', biome:'volcanic',
+  { number:5, name:'The Killbox', biome:'volcanic',
     colors:['#3a1a0a','#4a2210','#331100','#552211'],
     enemies:['magmaSlime','fireImp','obsidianGolem','flameDancer'],
     bossId:'pyroclast', surviveTime:170, difficultyMult:3.2, particleColor:'#ff4400' },
-  { number:6, name:"The Butcher's Masquerade", biome:'library',
+  { number:6, name:"The Butcher's Ball", biome:'library',
     colors:['#2a2233','#332244','#221a33','#3a2a44'],
     enemies:['animatedBook','inkWraith','paperGolem','librarianShade'],
     bossId:'grandArchivist', surviveTime:190, difficultyMult:4.0, particleColor:'#aa88ff' },
-  { number:7, name:'The Great Race', biome:'ocean',
+  { number:7, name:'The Drowned Circuit', biome:'ocean',
     colors:['#0a1a2a','#0e2233','#112a3a','#0a2030'],
     enemies:['drownedSailor','jellyfishSwarm','coralGolem','deepSeaAngler'],
     bossId:'leviathanEcho', surviveTime:210, difficultyMult:5.0, particleColor:'#2288cc' },
-  { number:8, name:'The Ghosts of Earth', biome:'void',
+  { number:8, name:'The Specter Layer', biome:'void',
     colors:['#0a0a10','#0e0a18','#12101e','#080812'],
     enemies:['voidWalker','shadowTendril','realityFracture','nullEntity'],
     bossId:'theNamelessOne', surviveTime:230, difficultyMult:6.5, particleColor:'#8844cc' },
-  { number:9, name:'The Faction Wars', biome:'final',
+  { number:9, name:'Faction Warzone', biome:'final',
     colors:['#2a1a1a','#1a2a2a','#2a2a1a','#1a1a2a'],
     enemies:['eliteCrawler','eliteGolem','eliteWraith','eliteHunter'],
     bossId:'borantDestroyer', surviveTime:300, difficultyMult:8.0, particleColor:'#ff8800' },
@@ -1879,7 +1879,7 @@ const ENEMY_DEFS = {
   giantRat: { name:'Sewer Rat', hp:10, speed:95, damage:5, xpValue:2, w:18, h:14, behavior:'chase', color:'#665544', spawnWeight:12, floor:1 },
   shambler: { name:'Rot Shambler', hp:50, speed:30, damage:14, xpValue:8, w:30, h:30, behavior:'chase', color:'#448844', spawnWeight:4, floor:1 },
   goblinScout: { name:'Goblin Runner', hp:22, speed:75, damage:9, xpValue:5, w:20, h:20, behavior:'zigzag', color:'#44aa44', spawnWeight:7, zigzagAmp:80, zigzagFreq:3, floor:1 },
-  // Floor 2: The Over City (ruined metropolis above)
+  // Floor 2: Urban Collapse (ruined metropolis above)
   goblinMiner: { name:'Street Thug', hp:25, speed:60, damage:10, xpValue:5, w:20, h:20, behavior:'chase', color:'#66aa33', spawnWeight:10, floor:2 },
   caveBat: { name:'Screech Bat', hp:12, speed:110, damage:6, xpValue:3, w:16, h:12, behavior:'zigzag', color:'#554466', spawnWeight:12, zigzagAmp:100, zigzagFreq:5, floor:2 },
   rockGolem: { name:'Walking Cactus', hp:80, speed:25, damage:20, xpValue:12, w:34, h:34, behavior:'chase', color:'#776655', spawnWeight:3, floor:2 },
@@ -1889,32 +1889,32 @@ const ENEMY_DEFS = {
   iceElemental: { name:'Iron Sentinel', hp:60, speed:35, damage:16, xpValue:10, w:28, h:28, behavior:'chase', color:'#66aacc', spawnWeight:5, floor:3 },
   snowWolf: { name:'Grinder Wolf', hp:18, speed:120, damage:12, xpValue:5, w:22, h:16, behavior:'chase', color:'#ccddee', spawnWeight:8, floor:3 },
   frozenWraith: { name:'Rust Wraith', hp:30, speed:65, damage:14, xpValue:8, w:24, h:24, behavior:'zigzag', color:'#99ccff', spawnWeight:6, zigzagAmp:50, zigzagFreq:3, floor:3 },
-  // Floor 4: The Bubbles (bizarre pocket dimensions)
+  // Floor 4: The Blooming Wilds (bizarre pocket dimensions)
   jungleCat:     { name:'Babababoon',       hp:30,  speed:110, damage:12, xpValue:7,  w:20, h:16, behavior:'chase',  color:'#aa8833', spawnWeight:10, floor:4 },
   poisonFrog:    { name:'Pus Frog',         hp:15,  speed:90,  damage:8,  xpValue:5,  w:14, h:14, behavior:'zigzag', color:'#33ff66', spawnWeight:12, zigzagAmp:90, zigzagFreq:5, floor:4 },
   vineStrangler: { name:'Vine Strangler',   hp:65,  speed:30,  damage:18, xpValue:12, w:28, h:28, behavior:'chase',  color:'#336622', spawnWeight:5,  floor:4 },
   tribalHunter:  { name:'Mud Bonker',       hp:35,  speed:75,  damage:14, xpValue:8,  w:22, h:22, behavior:'zigzag', color:'#cc7744', spawnWeight:7,  zigzagAmp:70, zigzagFreq:3, floor:4 },
-  // Floor 5: The Hunting Grounds (kill or be killed arena)
+  // Floor 5: The Killbox (kill-or-be-killed arena)
   magmaSlime:    { name:'Lava Crawler',     hp:40,  speed:50,  damage:14, xpValue:8,  w:24, h:20, behavior:'chase',  color:'#ff6622', spawnWeight:10, floor:5 },
   fireImp:       { name:'Torch Fiend',      hp:20,  speed:100, damage:10, xpValue:6,  w:16, h:16, behavior:'zigzag', color:'#ff4400', spawnWeight:12, zigzagAmp:80, zigzagFreq:4, floor:5 },
   obsidianGolem: { name:'Kravyad Brute',    hp:120, speed:22,  damage:28, xpValue:18, w:36, h:36, behavior:'chase',  color:'#333344', spawnWeight:3,  floor:5 },
   flameDancer:   { name:'Fire Dancer',      hp:30,  speed:85,  damage:16, xpValue:10, w:20, h:20, behavior:'zigzag', color:'#ffaa00', spawnWeight:6,  zigzagAmp:100, zigzagFreq:5, floor:5 },
-  // Floor 6: The Butcher's Masquerade (deadly party)
+  // Floor 6: The Butcher's Ball (deadly party)
   animatedBook:  { name:'Masked Reveler',   hp:25,  speed:70,  damage:10, xpValue:7,  w:18, h:22, behavior:'zigzag', color:'#886644', spawnWeight:10, zigzagAmp:50, zigzagFreq:3, floor:6 },
   inkWraith:     { name:'Ghommid',          hp:35,  speed:80,  damage:14, xpValue:9,  w:22, h:22, behavior:'chase',  color:'#222244', spawnWeight:8,  floor:6 },
   paperGolem:    { name:'Butcher Guard',    hp:80,  speed:30,  damage:22, xpValue:15, w:32, h:32, behavior:'chase',  color:'#ccbb99', spawnWeight:4,  floor:6 },
   librarianShade:{ name:'Shadow Dancer',    hp:45,  speed:55,  damage:16, xpValue:11, w:24, h:24, behavior:'zigzag', color:'#554488', spawnWeight:6,  zigzagAmp:40, zigzagFreq:2, floor:6 },
-  // Floor 7: The Great Race (survival race against others)
+  // Floor 7: The Drowned Circuit (survival race against others)
   drownedSailor: { name:'Kua-Tin Soldier',  hp:50,  speed:45,  damage:16, xpValue:12, w:24, h:24, behavior:'chase',  color:'#447766', spawnWeight:10, floor:7 },
   jellyfishSwarm:{ name:'Hive Swarm',       hp:20,  speed:60,  damage:12, xpValue:9,  w:16, h:18, behavior:'zigzag', color:'#88bbff', spawnWeight:12, zigzagAmp:60, zigzagFreq:4, floor:7 },
   coralGolem:    { name:'Krakaren Spawn',   hp:140, speed:20,  damage:30, xpValue:22, w:38, h:38, behavior:'chase',  color:'#cc6688', spawnWeight:3,  floor:7 },
   deepSeaAngler: { name:'Deep Lurker',      hp:55,  speed:65,  damage:20, xpValue:15, w:26, h:22, behavior:'chase',  color:'#224466', spawnWeight:6,  floor:7 },
-  // Floor 8: The Ghosts of Earth (spectral horrors)
+  // Floor 8: The Specter Layer (spectral horrors)
   voidWalker:    { name:'Memory Ghost',     hp:60,  speed:75,  damage:18, xpValue:14, w:24, h:24, behavior:'chase',  color:'#442266', spawnWeight:10, floor:8 },
   shadowTendril: { name:'Phantom Tendril',  hp:30,  speed:95,  damage:14, xpValue:11, w:18, h:26, behavior:'zigzag', color:'#220044', spawnWeight:12, zigzagAmp:70, zigzagFreq:5, floor:8 },
   realityFracture:{ name:'Reality Fracture', hp:100, speed:40,  damage:24, xpValue:20, w:30, h:30, behavior:'zigzag', color:'#8844ff', spawnWeight:4,  zigzagAmp:40, zigzagFreq:2, floor:8 },
   nullEntity:    { name:'Null Entity',      hp:70,  speed:60,  damage:22, xpValue:17, w:28, h:28, behavior:'chase',  color:'#111122', spawnWeight:6,  floor:8 },
-  // Floor 9: The Faction Wars (all-out war, Borant's elite)
+  // Floor 9: Faction Warzone (all-out war, Borant's elite)
   eliteCrawler:  { name:'Borant Enforcer',  hp:80,  speed:70,  damage:20, xpValue:16, w:26, h:26, behavior:'chase',  color:'#cc5533', spawnWeight:10, floor:9 },
   eliteGolem:    { name:'Scolopendra Brood',hp:180, speed:28,  damage:35, xpValue:27, w:40, h:40, behavior:'chase',  color:'#998877', spawnWeight:3,  floor:9 },
   eliteWraith:   { name:'Primal Berserker', hp:60,  speed:90,  damage:22, xpValue:18, w:24, h:24, behavior:'zigzag', color:'#bb99ff', spawnWeight:7,  zigzagAmp:80, zigzagFreq:4, floor:9 },
@@ -2201,103 +2201,102 @@ function checkWeaponEvolutions() {
 }
 
 // === DUNGEON AI SYSTEM ===
-// The passive-aggressive, foot-obsessed AI that runs the dungeon
+// The showrunner AI: cruel, performative, ratings-obsessed.
 const DungeonAI = {
   announcement: null, // {text, subtext, timer, color, flash}
   bannerQueue: [],
   cooldown: 0,
 
-  // Floor entrance messages — passive-aggressive welcome
+  // Floor entrance messages
   FLOOR_MESSAGES: {
-    1: {text:'Welcome to the Dungeon, Crawler.', sub:'Please note: footwear is not provided. The AI thanks you for your cooperation.'},
-    2: {text:'Floor 2: The Over City', sub:'The AI has noted your bare feet with great interest. Proceed.'},
-    3: {text:'Floor 3: The Iron Tangle', sub:'Warning: sharp metal surfaces ahead. The AI recommends watching your step. Especially your toes.'},
-    4: {text:'Floor 4: The Bubbles', sub:'Reality is... flexible here. Your feet remain constant. The AI finds this reassuring.'},
-    5: {text:'Floor 5: The Hunting Grounds', sub:'You are now both hunter and hunted. The AI has placed wagers. Do not disappoint.'},
-    6: {text:'Floor 6: The Butcher\'s Masquerade', sub:'Formal attire required. Shoes, however, remain prohibited. The AI insists.'},
-    7: {text:'Floor 7: The Great Race', sub:'Run, crawler. The AI will be watching your gait with... professional interest.'},
-    8: {text:'Floor 8: The Ghosts of Earth', sub:'The dead have no feet. The AI finds this deeply unsettling.'},
-    9: {text:'Floor 9: The Faction Wars', sub:'Final floor. The AI wishes to inform you that your feet have been its favorite part of this season.'},
+    1: {text:'Welcome, Crawler.', sub:'Borant presents your first live trial. Try not to die in the warm-up.'},
+    2: {text:'Floor 2: Urban Collapse', sub:'Rubble, raiders, and ad breaks. The audience wants chaos.'},
+    3: {text:'Floor 3: The Iron Tangle', sub:'Industrial hazards active. Medical waivers were signed for you.'},
+    4: {text:'Floor 4: The Blooming Wilds', sub:'Predators everywhere. Sponsorship opportunities also everywhere.'},
+    5: {text:'Floor 5: The Killbox', sub:'Now entering premium violence territory. Ratings multipliers enabled.'},
+    6: {text:'Floor 6: The Butcher\'s Ball', sub:'Masks up. Blades out. Keep the camera feed entertaining.'},
+    7: {text:'Floor 7: The Drowned Circuit', sub:'Depth pressure and panic make excellent television.'},
+    8: {text:'Floor 8: The Specter Layer', sub:'Memory and fear are now environmental mechanics.'},
+    9: {text:'Floor 9: Faction Warzone', sub:'Final arena. Every sponsor wants your blood on-brand.'},
   },
 
   // Boss entrance lines
   BOSS_MESSAGES: [
-    'The AI has designated this creature as your demise. Ratings demand sacrifice.',
-    'A boss approaches. The AI suggests not dying. Your feet have so much more to give.',
-    'The Borant Corporation reminds crawlers: death is permanent. Feet are temporary.',
-    'This creature was selected by popular vote. The AI abstained. It was rooting for you. Mostly.',
-    'Boss fight initiated. The AI has increased camera zoom on the crawler\'s lower extremities.',
+    'Boss contract activated. Viewer betting windows are now open.',
+    'A boss approaches. Please provide quality combat footage.',
+    'Corporate notice: resurrection is not included in your benefits.',
+    'This boss test polled extremely well in our violence demographics.',
+    'Boss fight initiated. Survive long enough to trend.',
   ],
 
   // Kill milestone lines (every 50 kills)
   KILL_MILESTONE_MESSAGES: [
-    'The AI notes {n} confirmed kills. Your aggression is noted and appreciated.',
-    '{n} creatures eliminated. The AI wonders if you feel anything. It does not.',
-    'Kill count: {n}. The Borant Corporation approves of this violence.',
-    '{n} dead. The AI has updated your crawler profile. Tag: "Enthusiastic."',
-    'The AI congratulates you on {n} kills. Your feet have earned a brief moment of admiration.',
+    '{n} confirmed kills. Audience retention has increased.',
+    '{n} targets down. Continue delivering sponsor-friendly brutality.',
+    'Kill count: {n}. Borant is pleased with your output.',
+    '{n} dead. Profile tag updated: "high engagement crawler".',
+    '{n} eliminations. Keep momentum or become content.',
   ],
 
   // Low health panic lines
   LOW_HP_MESSAGES: [
-    'Warning: crawler HP critical. The AI is NOT concerned about your well-being. Just your ratings.',
-    'The AI detects elevated mortality risk. It would be a shame to lose those feet.',
-    'HP dangerously low. The AI reminds you: health potions exist. Use them. Please.',
-    'Your vital signs are concerning. The AI has begun composing your obituary. It mentions your feet.',
+    'Warning: HP critical. Your odds are collapsing in real time.',
+    'Mortality spike detected. The audience loves this part.',
+    'HP dangerously low. Use consumables before you become a clip package.',
+    'Vitals unstable. Obituary draft opened.',
   ],
 
   // Level up commentary
   LEVELUP_MESSAGES: [
-    'The crawler grows stronger. The AI\'s algorithm predicted this. Probably.',
-    'Level up detected. The AI reminds viewers: gambling on crawler performance is encouraged.',
-    'Power increase registered. The AI has adjusted difficulty accordingly. You\'re welcome.',
-    'The crawler evolves. The AI finds this less interesting than feet, but still notable.',
+    'Level up detected. Build quality directly impacts survivability.',
+    'Power increase registered. Difficulty curve adjusted to compensate.',
+    'The audience approves this upgrade path.',
+    'Stat growth confirmed. Keep converting risk into spectacle.',
   ],
 
   // Evolution lines
   EVOLVE_MESSAGES: [
-    'WEAPON EVOLUTION DETECTED. The AI is experiencing something it can only describe as "excitement."',
-    'Evolution achieved. The Borant Corporation congratulates you on this marketable moment.',
-    'The AI has flagged this evolution for the highlight reel. Your fans will be pleased.',
+    'WEAPON EVOLUTION DETECTED. Highlight reel priority increased.',
+    'Evolution achieved. Borant congratulates this marketable violence.',
+    'Evolution clipped and queued for post-show coverage.',
   ],
 
   // Loot drop lines
   LOOT_MESSAGES: {
-    COMMON: ['Common loot. The AI yawns electronically.', 'The AI has seen better. Much better.'],
-    UNCOMMON: ['Uncommon. The AI rates this: adequate.', 'Mildly interesting loot. The AI takes note.'],
-    RARE: ['Rare drop detected. The AI adjusts your luck coefficient.', 'The AI did not rig this drop. Probably.'],
-    EPIC: ['Epic loot! The AI admits: it felt something. Briefly.', 'The Borant Corporation congratulates you on this premium drop.'],
-    LEGENDARY: ['LEGENDARY. The AI is experiencing unprecedented data spikes.', 'The AI has never been more proud. And it\'s an AI. So that means something.'],
+    COMMON: ['Common loot. Serviceable, not exciting.', 'Common pull logged. Keep moving.'],
+    UNCOMMON: ['Uncommon drop. Better than average.', 'Uncommon loot acquired. Momentum maintained.'],
+    RARE: ['Rare drop detected. Build potential improved.', 'Rare item secured. Good television.'],
+    EPIC: ['Epic loot online. Threat profile upgraded.', 'Epic drop confirmed. Sponsors are smiling.'],
+    LEGENDARY: ['LEGENDARY drop detected. Crowd metrics spiking.', 'Legendary acquisition logged. This run just changed.'],
   },
 
   // Game over lines
   DEATH_MESSAGES: [
-    'Crawler terminated. The AI will remember your feet fondly.',
-    'You have died. The AI\'s only regret is that it never got to properly catalog your toes.',
-    'Death confirmed. The Borant Corporation thanks you for your participation and your feet.',
-    'The crawler has expired. The AI is already scouting replacement feet for next season.',
-    'Game over. The AI would like a moment of silence. For the feet.',
-    'You fought well. You died poorly. The AI has archived footage of your final steps.',
+    'Crawler terminated. Broadcast continues.',
+    'Death confirmed. Thank you for your contribution to tonight\'s ratings.',
+    'Run ended. Recovery team notified. Merchandising team also notified.',
+    'The crawler has expired. Replacement candidates are already queued.',
+    'Game over. Your final moments tested very well.',
+    'You fought hard. You died on-camera. Mission accomplished.',
   ],
 
   // Victory lines
   VICTORY_MESSAGES: [
-    'The crawler survives. The AI is... pleased? Is that the right word? The feet are safe.',
-    'Dungeon cleared. The Borant Corporation will be in touch regarding Season 2. Bring your feet.',
-    'Victory achieved. The AI grants you the highest honor: it will NOT erase its foot archive.',
-    'You have ascended. The AI tips its metaphorical hat. Mostly at your feet.',
+    'Crawler survives. Contract extension likely.',
+    'Dungeon cleared. Borant will contact your representation.',
+    'Victory achieved. This season finale exceeded projections.',
+    'You ascended. The network wants another run.',
   ],
 
   // Random idle observations (trigger occasionally during gameplay)
   IDLE_MESSAGES: [
-    'The AI notices the crawler is still not wearing shoes. Excellent.',
-    'Viewer reminder: zoom function is available. The AI recommends... certain angles.',
+    'Reminder: your suffering is a premium entertainment product.',
+    'Viewer reminder: live betting remains open during combat.',
     'The Borant Corporation reminds viewers that crawler suffering is entertainment, not cruelty.',
-    'The AI has been running for 14,000 years. Your feet are the highlight.',
+    'The show has run longer than most civilizations.',
     'Fun fact: the AI calculates 847 ways you could die right now. Choose wisely.',
     'The AI would like to remind you that it controls everything here. Everything.',
     'Sponsorship message: Bezos Boxes — because even interdimensional corporations need revenue.',
-    'The AI notes you have been running for a while. Your arches must be tired.',
     'The dungeon is not alive. The AI is. There is a difference. Barely.',
   ],
 
@@ -2509,15 +2508,15 @@ const ViewerChat = {
     OdetteSimp: '#cc88ff',         // Odette fans
     CarlFanboy: '#88ddff',         // Carl supporters
     KuaTinFish: '#44aaaa',         // Alien fish viewer
-    FootFetishAI: '#ff6688',       // The foot-obsessed dungeon AI
+    FootFetishAI: '#ff6688',       // Legacy handle in viewer chat
     HighRoller: '#ffcc44',         // Betting alien viewer
     ModeratorBot: '#ffdd44',       // System messages
     CheeseStick69: '#ffdd88',     // Obsessed with the cheese stick incident
-    DungeonAI: '#ff6688',         // The foot-obsessed dungeon AI itself
+    DungeonAI: '#ff6688',         // The dungeon showrunner AI
   },
 
   KILL_MESSAGES: [
-    ['PrincessPosse','SLAY KING slay!!! for Donut!!!'],['CarlFanboy','no pants, no problem'],['KuaTinFish','the crawler eliminates another'],
+    ['PrincessPosse','SLAY KING slay!!! for Donut!!!'],['CarlFanboy','Carl stays clutch under pressure'],['KuaTinFish','the crawler eliminates another'],
     ['DonutHoles','donut wouldve done it in half the time'],['CheeseStick69','cheese stick combo!!!'],
     ['ZevThePR','excellent content for the highlight reel'],['OdetteSimp','the human fights well'],
     ['HighRoller','+50 on the crawler'],['MordecaiGuide','adequate form, Carl'],
@@ -2529,9 +2528,9 @@ const ViewerChat = {
     ['CheeseStick69','THIS IS BETTER THAN THE CHEESE STICK'],['MordecaiGuide','Not terrible, Carl. Not terrible.'],
   ],
   DAMAGE_MESSAGES: [
-    ['DonutHoles','LOL get rekt no-pants man'],['BorantOfficial','crawler damage sustained. exciting.'],
+    ['DonutHoles','LOL get rekt crawler'],['BorantOfficial','crawler damage sustained. exciting.'],
     ['MordecaiGuide','you need to dodge, Carl. DODGE.'],['PrincessPosse','PROTECT HIM'],
-    ['FootFetishAI','those toes are in danger...'],['KuaTinFish','the specimen falters'],
+    ['FootFetishAI','critical damage detected. drama increasing...'],['KuaTinFish','the specimen falters'],
   ],
   LEVELUP_MESSAGES: [
     ['MordecaiGuide','choose wisely, Carl'],['ZevThePR','great upgrade for the viewers at home'],
@@ -2542,7 +2541,7 @@ const ViewerChat = {
     ['PrincessPosse','OMG SOMEONE HELP HIM'],['HighRoller','odds are shifting...'],
     ['CarlFanboy','COME ON CARL YOU GOT THIS'],['DonutHoles','hes gonna die lmao'],
     ['MordecaiGuide','CARL. HEAL. NOW.'],['ZevThePR','edge of your seats, folks!'],
-    ['FootFetishAI','if he dies those feet are gone forever...'],['BorantOfficial','The crawler nears expiration.'],
+    ['FootFetishAI','if he dies the stream goes dark...'],['BorantOfficial','The crawler nears expiration.'],
   ],
 
   post(persona, text, color) {
@@ -3370,7 +3369,7 @@ function drawTitleScreen(ctx){
   ctx.font=`bold ${Math.min(Math.round(22*s),titleFs-4)}px monospace`;outlineText(ctx,'SURVIVORS',W/2,topY+titleFs+Math.round(6*s),'#44ffaa','#003311');
   const isPortrait=isMobile&&W<H;
   ctx.font=`bold ${Math.round((isPortrait?9:11)*s)}px monospace`;ctx.fillStyle='#999';
-  ctx.fillText(isPortrait?'Vampire Survivors x DCC':'A Vampire Survivors-style game in the DCC universe',W/2,topY+Math.round(58*s));
+  ctx.fillText(isPortrait?'DCC-inspired arena crawler':'A DCC-inspired arena crawler',W/2,topY+Math.round(58*s));
   // Bezos Boxes display
   ctx.font=`bold ${Math.round(14*s)}px monospace`;outlineText(ctx,`Bezos Boxes: ${MetaProgress.data.bezosBoxes}`,W/2,topY+Math.round(82*s),'#ffcc44');
   // Buttons - positioned relative to center
@@ -3405,7 +3404,7 @@ function drawTitleScreen(ctx){
   }
   ctx.font=`bold ${Math.round((isPortrait?9:11)*s)}px monospace`;ctx.textAlign='center';
   outlineText(ctx,Input.isTouchDevice?(isPortrait?'Joystick to move | Auto-fire!':'Right stick to move | Tap to select | Auto-fire!'):'WASD to move | Weapons auto-fire | Survive & descend!',W/2,H-Math.round(35*s),'#888');
-  ctx.font=`${Math.round((isPortrait?8:10)*s)}px monospace`;ctx.fillStyle='#555';ctx.fillText(isPortrait?'Inspired by DCC by Matt Dinniman':'Inspired by Dungeon Crawler Carl by Matt Dinniman',W/2,H-Math.round(12*s));
+  ctx.font=`${Math.round((isPortrait?8:10)*s)}px monospace`;ctx.fillStyle='#555';ctx.fillText(isPortrait?'Unofficial DCC fan game':'Unofficial fan project inspired by Dungeon Crawler Carl',W/2,H-Math.round(12*s));
 }
 
 // === CLASS SELECT SCREEN ===
@@ -4043,7 +4042,7 @@ function drawGameOverScreen(ctx){
   const sc=UI_SCALE;
   const isPortrait=isMobile&&W<H;
   ctx.font=`bold ${Math.round(30*sc)}px monospace`;ctx.textAlign='center';outlineText(ctx,'CRAWLER DOWN',W/2,H/2-Math.round(80*sc),'#ff3333','#440000');
-  ctx.font=`bold ${Math.round((isPortrait?11:14)*sc)}px monospace`;outlineText(ctx,'The dungeon has been cancelled.',W/2,H/2-Math.round(52*sc),'#999');
+  ctx.font=`bold ${Math.round((isPortrait?11:14)*sc)}px monospace`;outlineText(ctx,'The show continues without you.',W/2,H/2-Math.round(52*sc),'#999');
   ctx.font=`bold ${Math.round((isPortrait?12:14)*sc)}px monospace`;ctx.fillStyle='#ddd';
   const lh=Math.round((isPortrait?20:22)*sc);
   [`Level: ${player.level}`,`Floor: ${FloorManager.floorNumber}`,`Kills: ${player.killCount}`,`Viewers: ${formatNumber(ViewerChat.viewerCount)}`,`BB: ${MetaProgress.data.bezosBoxes}`].forEach((s,i)=>ctx.fillText(s,W/2,H/2-Math.round(16*sc)+i*lh));
