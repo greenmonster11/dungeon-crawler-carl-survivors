@@ -1304,6 +1304,7 @@ const Telemetry = {
   heartbeatTimer: 0,
   heartbeatEvery: 30,
   lastSentSec: 0,
+  pendingBossMeta: null,
 
   getOrCreatePlayerId() {
     let playerId = localStorage.getItem('dcc_player_id');
@@ -1336,6 +1337,11 @@ const Telemetry = {
       kills: player ? player.killCount : 0,
       level: player ? player.level : 1,
     };
+    if (this.pendingBossMeta) {
+      payload.boss_ability_id = this.pendingBossMeta.id;
+      payload.boss_phase = this.pendingBossMeta.phase;
+      payload.telegraph_ms = this.pendingBossMeta.telegraphMs;
+    }
 
     try {
       await fetch('/api/telemetry', {
@@ -1346,6 +1352,7 @@ const Telemetry = {
       });
       this.lastSentSec = elapsedSec;
     } catch (e) {}
+    this.pendingBossMeta = null;
   },
 
   startRun() {
@@ -1371,6 +1378,14 @@ const Telemetry = {
     if (!this.active) return;
     this.active = false;
     this.send('end', true);
+  },
+
+  logBossAbility(id, phase, telegraphMs) {
+    this.pendingBossMeta = {
+      id: String(id || ''),
+      phase: Math.max(0, Math.floor(phase || 0)),
+      telegraphMs: Math.max(0, Math.floor(telegraphMs || 0)),
+    };
   }
 };
 
@@ -1652,6 +1667,62 @@ function triggerScreenFlash(color,dur){screenFlash={active:true,timer:dur||0.15,
 function drawScreenFlash(ctx){if(!screenFlash.active)return;screenFlash.timer-=1/60;const a=clamp(screenFlash.timer/screenFlash.maxTimer,0,1)*0.4;ctx.globalAlpha=a;ctx.fillStyle=screenFlash.color;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;if(screenFlash.timer<=0)screenFlash.active=false}
 function updateParticles(dt){for(let i=particles.length-1;i>=0;i--){const p=particles[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=p.gravity*dt;p.life-=dt;if(p.life<=0)particles.splice(i,1)}}
 function drawParticles(ctx){for(const p of particles){const a=clamp(p.life/p.maxLife,0,1);if(p.type==='text'){ctx.globalAlpha=a;ctx.font=`bold ${p.size}px monospace`;ctx.textAlign='center';outlineText(ctx,p.text,p.x,p.y,p.color);ctx.globalAlpha=1}else{const sz=p.shrink?p.size*a:p.size;ctx.globalAlpha=a;ctx.fillStyle=p.color;ctx.fillRect(p.x-sz/2,p.y-sz/2,sz,sz);ctx.globalAlpha=1}}}
+
+let bossTelegraphs = [];
+function queueBossTelegraph(t){
+  const lead = clamp(t.lead || 0.6, 0.4, 0.8);
+  bossTelegraphs.push({
+    kind: t.kind,
+    x: t.x || 0, y: t.y || 0, x2: t.x2 || t.x || 0, y2: t.y2 || t.y || 0,
+    radius: t.radius || 90,
+    color: t.color || '#ff4444',
+    lead, timer: lead,
+    phaseIdx: t.phaseIdx || 0,
+    abilityId: t.abilityId || 'unknown',
+    resolve: t.resolve || null,
+    persist: t.persist || 0.12,
+    triggered: false,
+  });
+}
+function updateBossTelegraphs(dt){
+  for(let i=bossTelegraphs.length-1;i>=0;i--){
+    const t=bossTelegraphs[i];
+    t.timer-=dt;
+    if(!t.triggered&&t.timer<=0){
+      t.triggered=true;
+      if(t.resolve)t.resolve();
+      Telemetry.logBossAbility(t.abilityId,t.phaseIdx,t.lead*1000);
+    }
+    if(t.timer<=-(t.persist||0.12))bossTelegraphs.splice(i,1);
+  }
+}
+function drawBossTelegraphs(ctx){
+  for(const t of bossTelegraphs){
+    const prog=clamp(1-(t.timer/Math.max(0.01,t.lead)),0,1);
+    const pulse=0.55+Math.sin(performance.now()*0.02+t.radius)*0.35;
+    const a=(t.triggered?0.25:0.45+prog*0.35)*pulse;
+    const lw=(isMobile?2:3)+(t.kind==='dashChain'?(isMobile?2:3):1);
+    ctx.globalAlpha=a;
+    ctx.strokeStyle=t.color;
+    ctx.fillStyle=t.color;
+    ctx.lineWidth=lw;
+    if(t.kind==='dashChain'){
+      ctx.beginPath();ctx.moveTo(t.x,t.y);ctx.lineTo(t.x2,t.y2);ctx.stroke();
+    }else{
+      const r=t.radius*(0.75+prog*0.25);
+      ctx.beginPath();ctx.arc(t.x,t.y,r,0,Math.PI*2);ctx.stroke();
+      if(t.kind==='summonRing'){
+        const c=6;
+        for(let i=0;i<c;i++){
+          const an=(Math.PI*2*i)/c+prog*0.8;
+          const px=t.x+Math.cos(an)*r,py=t.y+Math.sin(an)*r;
+          ctx.fillRect(px-2,py-2,4,4);
+        }
+      }
+    }
+    ctx.globalAlpha=1;
+  }
+}
 
 // === ENTITY ARRAYS ===
 let player = null;
@@ -2086,31 +2157,50 @@ const BOSS_ABILITY_COOLDOWNS = {
 const BossAbilityHandlers = {
   radialBurst(bossEntity, target, phaseIdx) {
     const radius = 110 + phaseIdx * 20;
-    spawnExplosion(bossEntity.x, bossEntity.y, 8, bossEntity.telegraphColor);
-    if (player && dist(bossEntity.x, bossEntity.y, player.x, player.y) <= radius) {
-      player.takeDamage(Math.floor(bossEntity.damage * 0.75));
-    }
+    queueBossTelegraph({
+      kind:'radialBurst', abilityId:'radialBurst', phaseIdx,
+      x:bossEntity.x, y:bossEntity.y, radius, color:'#ff4444', lead:0.56,
+      resolve:()=>{
+        spawnExplosion(bossEntity.x, bossEntity.y, 8, bossEntity.telegraphColor);
+        if (player && dist(bossEntity.x, bossEntity.y, player.x, player.y) <= radius) {
+          player.takeDamage(Math.floor(bossEntity.damage * 0.75));
+        }
+      }
+    });
   },
   groundSlam(bossEntity, target, phaseIdx) {
     const tx = target ? target.x : bossEntity.x;
     const ty = target ? target.y : bossEntity.y;
     const radius = 80 + phaseIdx * 15;
-    spawnExplosion(tx, ty, 10, '#ff4422');
-    if (player && dist(tx, ty, player.x, player.y) <= radius) {
-      player.takeDamage(Math.floor(bossEntity.damage * 0.85));
-    }
+    queueBossTelegraph({
+      kind:'groundSlam', abilityId:'groundSlam', phaseIdx,
+      x:tx, y:ty, radius, color:'#ff3333', lead:0.68,
+      resolve:()=>{
+        spawnExplosion(tx, ty, 10, '#ff4422');
+        if (player && dist(tx, ty, player.x, player.y) <= radius) {
+          player.takeDamage(Math.floor(bossEntity.damage * 0.85));
+        }
+      }
+    });
   },
   summonRing(bossEntity) {
-    const floorEnemies = FloorManager.currentFloor ? FloorManager.currentFloor.enemies : [];
-    const count = Math.min(10, 6 + Math.floor(FloorManager.floorNumber / 2));
-    for (let i = 0; i < count; i++) {
-      const type = randomFrom(floorEnemies);
-      if (!ENEMY_DEFS[type]) continue;
-      const a = (Math.PI * 2 * i) / count;
-      const r = 120 + (Math.random() - 0.5) * 20;
-      enemies.push(createEnemy(type, bossEntity.x + Math.cos(a) * r, bossEntity.y + Math.sin(a) * r, FloorManager.currentFloor.difficultyMult));
-    }
-    spawnExplosion(bossEntity.x, bossEntity.y, 12, '#aa66ff');
+    const radius = 120;
+    queueBossTelegraph({
+      kind:'summonRing', abilityId:'summonRing', phaseIdx:bossEntity.currentPhase||0,
+      x:bossEntity.x, y:bossEntity.y, radius, color:'#66ccff', lead:0.74,
+      resolve:()=>{
+        const floorEnemies = FloorManager.currentFloor ? FloorManager.currentFloor.enemies : [];
+        const count = Math.min(10, 6 + Math.floor(FloorManager.floorNumber / 2));
+        for (let i = 0; i < count; i++) {
+          const type = randomFrom(floorEnemies);
+          if (!ENEMY_DEFS[type]) continue;
+          const a = (Math.PI * 2 * i) / count;
+          const r = radius + (Math.random() - 0.5) * 20;
+          enemies.push(createEnemy(type, bossEntity.x + Math.cos(a) * r, bossEntity.y + Math.sin(a) * r, FloorManager.currentFloor.difficultyMult));
+        }
+        spawnExplosion(bossEntity.x, bossEntity.y, 12, '#aa66ff');
+      }
+    });
   },
   dashChain(bossEntity, target, phaseIdx) {
     if (!target) return;
@@ -2119,11 +2209,17 @@ const BossAbilityHandlers = {
     const a = angle(fromX, fromY, target.x, target.y);
     const toX = clamp(fromX + Math.cos(a) * dashRange, bossEntity.w, CONFIG.FLOOR_WIDTH - bossEntity.w);
     const toY = clamp(fromY + Math.sin(a) * dashRange, bossEntity.h, CONFIG.FLOOR_HEIGHT - bossEntity.h);
-    bossEntity.x = toX; bossEntity.y = toY;
-    spawnExplosion(toX, toY, 8, '#ffbb66');
-    if (player && distToSegment(player.x, player.y, fromX, fromY, toX, toY) < (isMobile ? 24 : 28)) {
-      player.takeDamage(Math.floor(bossEntity.damage * 0.95));
-    }
+    queueBossTelegraph({
+      kind:'dashChain', abilityId:'dashChain', phaseIdx,
+      x:fromX, y:fromY, x2:toX, y2:toY, color:'#ffbb66', lead:0.46,
+      resolve:()=>{
+        bossEntity.x = toX; bossEntity.y = toY;
+        spawnExplosion(toX, toY, 8, '#ffbb66');
+        if (player && distToSegment(player.x, player.y, fromX, fromY, toX, toY) < (isMobile ? 24 : 28)) {
+          player.takeDamage(Math.floor(bossEntity.damage * 0.95));
+        }
+      }
+    });
   },
 };
 
@@ -4587,7 +4683,7 @@ function startNewRun(){
   for(const cid of MetaProgress.data.unlockedCompanions){
     const c=createCompanion(cid);c.x=player.x+(cid==='donut'?-40:40);c.y=player.y;companions.push(c);
   }
-  enemies=[];projectiles=[];pickups=[];orbitals=[];particles=[];meleeVisuals=[];chainVisuals=[];AmbientFX.particles=[];bossWarning.active=false;
+  enemies=[];projectiles=[];pickups=[];orbitals=[];particles=[];meleeVisuals=[];chainVisuals=[];bossTelegraphs=[];AmbientFX.particles=[];bossWarning.active=false;
   pendingLevelUps=0;levelUpChoices=[];lootPopup=null;boss=null;
   ViewerChat.messages=[];ViewerChat.viewerCount=1000;ViewerChat.viewerPeak=1000;ViewerChat.killStreak=0;
   DungeonAI.reset();
@@ -4638,7 +4734,7 @@ const Game = {
         Spawner.update(simDt);FloorManager.update(simDt);SpatialGrid.buildFromEnemies();
         updateProjectiles(simDt);updatePickups(simDt);
         checkEnemyPlayerCollision(simDt);despawnFarEnemies();
-        updateParticles(simDt);updateVisuals(simDt);ViewerChat.update(simDt);DungeonAI.update(simDt);AmbientFX.update(simDt);updateBossWarning(simDt);
+        updateParticles(simDt);updateVisuals(simDt);updateBossTelegraphs(simDt);ViewerChat.update(simDt);DungeonAI.update(simDt);AmbientFX.update(simDt);updateBossWarning(simDt);
         if(lootPopup)lootPopup.timer-=dt;
         if(pendingLevelUps>0&&this.state==='playing'){levelUpChoices=generateLevelUpChoices();if(levelUpChoices.length>0)this.changeState('levelUp');else pendingLevelUps=0}
         break;
@@ -4655,6 +4751,7 @@ const Game = {
       case'paused':
       case'playing':case'levelUp':
         ctx.save();Camera.apply(ctx);drawGround(ctx);drawPickups(ctx);FloorManager.drawStairwell(ctx);
+        drawBossTelegraphs(ctx);
         AmbientFX.draw(ctx);drawVisuals(ctx);drawOrbitals(ctx);drawCompanions(ctx);
         for(const e of enemies){if(e.alive)e.draw(ctx)}
         drawProjectiles(ctx);player.draw(ctx);drawParticles(ctx);ctx.restore();

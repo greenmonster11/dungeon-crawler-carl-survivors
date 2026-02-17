@@ -25,6 +25,14 @@ function sanitizeId(value, maxLen = 96) {
   return clean;
 }
 
+function sanitizeBossAbility(value) {
+  if (typeof value !== 'string') return '';
+  const clean = value.trim();
+  if (!clean || clean.length > 40) return '';
+  if (!/^[a-zA-Z0-9_-]+$/.test(clean)) return '';
+  return clean;
+}
+
 async function readStats(now) {
   const cutoff = now - (ACTIVE_WINDOW_SECONDS * 1000);
   const daily = `play:daily:${dayKey(now)}`;
@@ -74,6 +82,9 @@ export default async function handler(req, res) {
     const sessionId = sanitizeId(body.sessionId, 80);
     const playerId = sanitizeId(body.playerId, 80);
     const elapsedSec = Math.max(0, Math.min(172800, parseIntSafe(body.elapsedSec)));
+    const bossAbilityId = sanitizeBossAbility(body.boss_ability_id);
+    const bossPhase = Math.max(0, Math.min(8, parseIntSafe(body.boss_phase, 0)));
+    const telegraphMs = Math.max(0, Math.min(5000, parseIntSafe(body.telegraph_ms, 0)));
     const now = Date.now();
 
     if (!['start', 'heartbeat', 'end'].includes(event)) {
@@ -121,6 +132,11 @@ export default async function handler(req, res) {
     }
     if (event === 'end') {
       sessionData.endedAt = now;
+    }
+    if (bossAbilityId) {
+      sessionData.bossAbilityId = bossAbilityId;
+      sessionData.bossPhase = bossPhase;
+      sessionData.telegraphMs = telegraphMs;
     }
 
     await redis.hset(sessionKey, sessionData);
