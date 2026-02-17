@@ -2037,15 +2037,24 @@ const WEAPON_DEFS = {
 
 // === PASSIVE ITEM DEFINITIONS ===
 const PASSIVE_DEFS = {
-  brassKnuckles: { name:'War Gauntlet of the Grull', desc:'Melee damage +20%', stat:'meleeDmgMult', value:0.20, rarity:'COMMON', maxLevel:5, color:'#ddaa44' },
-  spellbook: { name:'Dungeon Anarchist\'s Cookbook', desc:'Projectile damage +15%. Goblin recipes galore!', stat:'projDmgMult', value:0.15, rarity:'UNCOMMON', maxLevel:5, color:'#8844cc' },
-  speedBoots: { name:'Enchanted Anklet of the Fallen Oak', desc:'Move speed +12%. No pants required.', stat:'speedMult', value:0.12, rarity:'COMMON', maxLevel:5, color:'#44aaff' },
-  magnetAmulet: { name:'Toe Ring of the Splatter Skunk', desc:'Pickup radius +35%. The AI insists.', stat:'pickupMult', value:0.35, rarity:'UNCOMMON', maxLevel:5, color:'#ffaa88' },
-  armorPlate: { name:'Kneepads of the Groveler', desc:'Armor +2. Still no pants.', stat:'armor', value:2, rarity:'RARE', maxLevel:5, color:'#888899' },
-  xpBoost: { name:'Audience Favorite Badge', desc:'XP gain +15%. The viewers love you.', stat:'xpMult', value:0.15, rarity:'UNCOMMON', maxLevel:5, color:'#ffdd44' },
-  cooldownReduction: { name:'Rev-Up Moonshine', desc:'Cooldowns -8%. Toilet-grade quality.', stat:'cooldownMult', value:-0.08, rarity:'RARE', maxLevel:5, color:'#ff88cc' },
-  maxHpUp: { name:'Crawler Biscuit', desc:'Max HP +15. It\'s just a biscuit.', stat:'maxHp', value:15, rarity:'COMMON', maxLevel:5, color:'#ff6644' },
-  luckCharm: { name:'Bezos\' Lucky Coin', desc:'Loot rarity +10%. Blessed by capitalism.', stat:'luckMult', value:0.10, rarity:'RARE', maxLevel:5, color:'#ffdd88' },
+  brassKnuckles: { name:'War Gauntlet of the Grull', desc:'Melee damage +20%', stat:'meleeDmgMult', value:0.20, rarity:'COMMON', maxLevel:5, color:'#ddaa44',
+    icon:(c,x,y,s)=>{c.fillStyle='#ddaa44';c.fillRect(x+s*0.2,y+s*0.4,s*0.6,s*0.4);c.fillStyle='#cc8822';for(let i=0;i<4;i++)c.fillRect(x+s*0.22+i*s*0.14,y+s*0.28,s*0.1,s*0.16)} },
+  spellbook: { name:'Dungeon Anarchist\'s Cookbook', desc:'Projectile damage +15%. Goblin recipes galore!', stat:'projDmgMult', value:0.15, rarity:'UNCOMMON', maxLevel:5, color:'#8844cc',
+    icon:(c,x,y,s)=>{c.fillStyle='#8844cc';c.fillRect(x+s*0.15,y+s*0.2,s*0.7,s*0.6);c.fillStyle='#6622aa';c.fillRect(x+s*0.48,y+s*0.15,s*0.04,s*0.7);c.fillStyle='#bb88ff';for(let i=0;i<3;i++){c.fillRect(x+s*0.22,y+s*0.32+i*s*0.12,s*0.2,s*0.04);c.fillRect(x+s*0.58,y+s*0.32+i*s*0.12,s*0.2,s*0.04)}} },
+  speedBoots: { name:'Enchanted Anklet of the Fallen Oak', desc:'Move speed +12%. No pants required.', stat:'speedMult', value:0.12, rarity:'COMMON', maxLevel:5, color:'#44aaff',
+    icon:(c,x,y,s)=>{c.fillStyle='#44aaff';c.beginPath();c.moveTo(x+s*0.3,y+s*0.15);c.lineTo(x+s*0.45,y+s*0.15);c.lineTo(x+s*0.45,y+s*0.6);c.lineTo(x+s*0.85,y+s*0.6);c.lineTo(x+s*0.85,y+s*0.8);c.lineTo(x+s*0.2,y+s*0.8);c.lineTo(x+s*0.2,y+s*0.3);c.closePath();c.fill();c.fillStyle='#88ddff';c.beginPath();c.moveTo(x+s*0.2,y+s*0.35);c.lineTo(x+s*0.08,y+s*0.25);c.lineTo(x+s*0.2,y+s*0.5);c.fill()} },
+  magnetAmulet: { name:'Toe Ring of the Splatter Skunk', desc:'Pickup radius +35%. The AI insists.', stat:'pickupMult', value:0.35, rarity:'UNCOMMON', maxLevel:5, color:'#ffaa88',
+    icon:(c,x,y,s)=>{c.strokeStyle='#ffaa88';c.lineWidth=Math.max(2,s*0.12);c.beginPath();c.arc(x+s/2,y+s*0.42,s*0.25,Math.PI,0);c.stroke();c.fillStyle='#ff4444';c.fillRect(x+s*0.23,y+s*0.42,s*0.12,s*0.3);c.fillStyle='#4488ff';c.fillRect(x+s*0.65,y+s*0.42,s*0.12,s*0.3)} },
+  armorPlate: { name:'Kneepads of the Groveler', desc:'Armor +2. Still no pants.', stat:'armor', value:2, rarity:'RARE', maxLevel:5, color:'#888899',
+    icon:(c,x,y,s)=>{c.fillStyle='#888899';c.beginPath();c.moveTo(x+s*0.2,y+s*0.15);c.lineTo(x+s*0.8,y+s*0.15);c.lineTo(x+s*0.8,y+s*0.55);c.lineTo(x+s*0.5,y+s*0.85);c.lineTo(x+s*0.2,y+s*0.55);c.closePath();c.fill();c.fillStyle='#aaaabb';c.fillRect(x+s*0.35,y+s*0.3,s*0.3,s*0.06);c.fillRect(x+s*0.47,y+s*0.25,s*0.06,s*0.35)} },
+  xpBoost: { name:'Audience Favorite Badge', desc:'XP gain +15%. The viewers love you.', stat:'xpMult', value:0.15, rarity:'UNCOMMON', maxLevel:5, color:'#ffdd44',
+    icon:(c,x,y,s)=>{c.fillStyle='#ffdd44';c.beginPath();const cx2=x+s/2,cy2=y+s/2;for(let i=0;i<5;i++){const a=i*Math.PI*2/5-Math.PI/2;c.lineTo(cx2+Math.cos(a)*s*0.38,cy2+Math.sin(a)*s*0.38);const b=a+Math.PI/5;c.lineTo(cx2+Math.cos(b)*s*0.16,cy2+Math.sin(b)*s*0.16)}c.closePath();c.fill()} },
+  cooldownReduction: { name:'Rev-Up Moonshine', desc:'Cooldowns -8%. Toilet-grade quality.', stat:'cooldownMult', value:-0.08, rarity:'RARE', maxLevel:5, color:'#ff88cc',
+    icon:(c,x,y,s)=>{c.strokeStyle='#ff88cc';c.lineWidth=Math.max(1,s*0.06);c.beginPath();c.arc(x+s/2,y+s/2,s*0.35,0,Math.PI*2);c.stroke();c.strokeStyle='#ffaadd';c.lineWidth=Math.max(1,s*0.05);c.beginPath();c.moveTo(x+s/2,y+s/2);c.lineTo(x+s/2,y+s*0.22);c.stroke();c.beginPath();c.moveTo(x+s/2,y+s/2);c.lineTo(x+s*0.68,y+s*0.48);c.stroke()} },
+  maxHpUp: { name:'Crawler Biscuit', desc:'Max HP +15. It\'s just a biscuit.', stat:'maxHp', value:15, rarity:'COMMON', maxLevel:5, color:'#ff6644',
+    icon:(c,x,y,s)=>{c.fillStyle='#ff6644';c.beginPath();c.moveTo(x+s/2,y+s*0.82);c.bezierCurveTo(x+s*0.1,y+s*0.55,x+s*0.1,y+s*0.2,x+s/2,y+s*0.35);c.bezierCurveTo(x+s*0.9,y+s*0.2,x+s*0.9,y+s*0.55,x+s/2,y+s*0.82);c.fill()} },
+  luckCharm: { name:'Bezos\' Lucky Coin', desc:'Loot rarity +10%. Blessed by capitalism.', stat:'luckMult', value:0.10, rarity:'RARE', maxLevel:5, color:'#ffdd88',
+    icon:(c,x,y,s)=>{c.fillStyle='#ffdd88';c.beginPath();c.arc(x+s/2,y+s/2,s*0.38,0,Math.PI*2);c.fill();c.fillStyle='#cc9944';c.beginPath();c.arc(x+s/2,y+s/2,s*0.28,0,Math.PI*2);c.fill();c.save();c.fillStyle='#ffdd88';c.font=`bold ${Math.max(8,Math.round(s*0.35))}px monospace`;c.textAlign='center';c.textBaseline='middle';c.fillText('B',x+s/2,y+s/2);c.restore()} },
 };
 
 // === CLASS DEFINITIONS ===
@@ -2076,6 +2085,7 @@ const COMPANION_DEFS = {
     projSpeed:250, projColor:'#ff44ff',
     unlockCost:200, maxLevel:8,
     scaling:{ damage:3, attackSpeed:-0.08, auraRadius:10, hp:8 },
+    icon:(c,x,y,s)=>{const cv=SpriteCache.canvases['donut'];if(cv){c.drawImage(cv,x+s*0.15,y+s*0.15,s*0.7,s*0.7)}else{c.fillStyle='#ff8833';c.fillRect(x+s*0.2,y+s*0.3,s*0.6,s*0.45);c.fillStyle='#44ff44';c.fillRect(x+s*0.3,y+s*0.4,s*0.1,s*0.1);c.fillRect(x+s*0.55,y+s*0.4,s*0.1,s*0.1);c.fillStyle='#ffcc00';c.beginPath();c.moveTo(x+s*0.35,y+s*0.3);c.lineTo(x+s*0.5,y+s*0.15);c.lineTo(x+s*0.65,y+s*0.3);c.fill()}},
   },
   mongo: {
     name:'Mongo', desc:'Velociraptorish. Charges + aggro pull.',
@@ -2085,6 +2095,7 @@ const COMPANION_DEFS = {
     chargeSpeed:200, stompRadius:50,
     unlockCost:300, maxLevel:8,
     scaling:{ damage:5, attackSpeed:-0.1, auraRadius:12, hp:15 },
+    icon:(c,x,y,s)=>{const cv=SpriteCache.canvases['mongo'];if(cv){c.drawImage(cv,x+s*0.1,y+s*0.15,s*0.8,s*0.7)}else{c.fillStyle='#44aa44';c.fillRect(x+s*0.2,y+s*0.25,s*0.6,s*0.5);c.fillStyle='#ff4444';c.fillRect(x+s*0.3,y+s*0.35,s*0.1,s*0.1);c.fillRect(x+s*0.55,y+s*0.35,s*0.1,s*0.1)}},
   },
 };
 
@@ -3880,7 +3891,7 @@ function drawHUD(ctx){
   if(player.passives.length>0){
     const ps=Math.round((isPortrait?18:22)*s),pg=Math.round(3*s),ptw=player.passives.length*(ps+pg)-pg;
     const psx=isPortrait?12:W/2-ptw/2,py=wy-ps-4;
-    for(let i=0;i<player.passives.length;i++){const p=player.passives[i],def=PASSIVE_DEFS[p.id],px=psx+i*(ps+pg);ctx.fillStyle=def.color;ctx.fillRect(px,py,ps,ps);ctx.font=`bold ${Math.round((isPortrait?7:9)*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,p.level.toString(),px+ps/2,py+ps-4,'#fff')}}
+    for(let i=0;i<player.passives.length;i++){const p=player.passives[i],def=PASSIVE_DEFS[p.id],px=psx+i*(ps+pg);if(def.icon){ctx.fillStyle='rgba(0,0,0,0.7)';ctx.fillRect(px,py,ps,ps);def.icon(ctx,px,py,ps)}else{ctx.fillStyle=def.color;ctx.fillRect(px,py,ps,ps)}ctx.strokeStyle=CONFIG.COLORS[def.rarity]||'#666';ctx.lineWidth=1;ctx.strokeRect(px,py,ps,ps);ctx.font=`bold ${Math.round((isPortrait?7:9)*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,p.level.toString(),px+ps/2,py+ps-4,'#fff')}}
 
   // Viewer chat
   ViewerChat.draw(ctx);
@@ -3917,6 +3928,24 @@ function drawHUD(ctx){
 function drawBar(ctx,x,y,w,h,pct,fg,bg,border){ctx.fillStyle=bg;ctx.fillRect(x,y,w,h);ctx.fillStyle=fg;ctx.fillRect(x,y,w*clamp(pct,0,1),h);if(border){ctx.strokeStyle=border;ctx.lineWidth=1;ctx.strokeRect(x,y,w,h)}}
 function outlineText(ctx,text,x,y,fill,outlineColor){ctx.strokeStyle=outlineColor||'#000';ctx.lineWidth=3;ctx.lineJoin='round';ctx.strokeText(text,x,y);ctx.fillStyle=fill;ctx.fillText(text,x,y)}
 
+// === LEVEL UP ICON HELPERS ===
+function drawHealIcon(c,x,y,s){
+  // Drumstick / floor chicken
+  c.fillStyle='#eedd99';c.fillRect(x+s*0.12,y+s*0.52,s*0.28,s*0.1);
+  c.beginPath();c.arc(x+s*0.12,y+s*0.57,s*0.07,0,Math.PI*2);c.fill();
+  c.fillStyle='#cc5522';c.beginPath();c.ellipse(x+s*0.58,y+s*0.42,s*0.28,s*0.22,-0.3,0,Math.PI*2);c.fill();
+  c.fillStyle='#ff7744';c.beginPath();c.ellipse(x+s*0.52,y+s*0.35,s*0.12,s*0.08,-0.3,0,Math.PI*2);c.fill();
+}
+function getChoiceIcon(choice){
+  switch(choice.type){
+    case'newWeapon':case'upgradeWeapon':{const wid=choice.id||choice.weaponId;const def=WEAPON_DEFS[wid];return def&&def.icon?def.icon:null}
+    case'newPassive':case'upgradePassive':{const pid=choice.id||choice.passiveId;const def=PASSIVE_DEFS[pid];return def&&def.icon?def.icon:null}
+    case'upgradeCompanion':{const cid=choice.companionId;const def=COMPANION_DEFS[cid];return def&&def.icon?def.icon:null}
+    case'heal':return drawHealIcon;
+    default:return null;
+  }
+}
+
 // === LEVEL UP SCREEN ===
 function drawLevelUpScreen(ctx){
   ctx.fillStyle='rgba(0,0,0,0.75)';ctx.fillRect(0,0,W,H);
@@ -3926,7 +3955,7 @@ function drawLevelUpScreen(ctx){
   ctx.font=`bold ${Math.round(28*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,'LEVEL UP!',W/2,titleY+20,'#ffdd44');
   ctx.font=`bold ${Math.round(13*s)}px monospace`;outlineText(ctx,`Level ${player.level}  -  Choose an upgrade`,W/2,titleY+48,'#aaaaaa');
   if(isPortrait){
-    // Portrait: stack cards vertically, full width
+    // Portrait: stack cards vertically, icon on left side
     const cw=W-40,cg=Math.round(8*s);
     const ch=Math.min(Math.round(90*s),Math.floor((H-titleY-80)/levelUpChoices.length-cg));
     const cy0=titleY+60;
@@ -3935,22 +3964,38 @@ function drawLevelUpScreen(ctx){
       const hover=Input.mouse.x>=cx&&Input.mouse.x<=cx+cw&&Input.mouse.y>=cy&&Input.mouse.y<=cy+ch;
       ctx.fillStyle=hover?'rgba(60,60,80,0.95)':'rgba(30,30,45,0.95)';ctx.fillRect(cx,cy,cw,ch);
       ctx.strokeStyle=CONFIG.COLORS[c.rarity]||'#666';ctx.lineWidth=hover?4:2;ctx.strokeRect(cx,cy,cw,ch);
-      ctx.font=`bold ${Math.round(10*s)}px monospace`;ctx.fillStyle=CONFIG.COLORS[c.rarity]||'#666';ctx.textAlign='left';ctx.fillText(c.rarity,cx+10,cy+16);
+      // Icon (left side)
+      const iconFn=getChoiceIcon(c);
+      const iconSz=Math.min(Math.round(40*s),Math.round(ch*0.7));
+      const iconPad=Math.round(8*s);
+      const textL=iconFn?(cx+iconPad+iconSz+Math.round(10*s)):(cx+10);
+      const textW=iconFn?(cw-iconPad-iconSz-Math.round(18*s)):(cw-20);
+      if(iconFn){
+        const ix=cx+iconPad,iy=cy+Math.round((ch-iconSz)/2);
+        ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.arc(ix+iconSz/2,iy+iconSz/2,iconSz/2+3,0,Math.PI*2);ctx.fill();
+        iconFn(ctx,ix,iy,iconSz);
+      }
+      // Rarity + type badges
+      ctx.font=`bold ${Math.round(10*s)}px monospace`;ctx.fillStyle=CONFIG.COLORS[c.rarity]||'#666';ctx.textAlign='left';ctx.fillText(c.rarity,textL,cy+16);
       ctx.textAlign='right';ctx.fillStyle='#999';ctx.fillText(c.type.replace('new','NEW ').replace('upgrade','UP '),cx+cw-10,cy+16);
-      ctx.font=`bold ${Math.round(13*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,c.name,cx+cw/2,cy+34,c.color||'#fff');
-      ctx.font=`${Math.round(10*s)}px monospace`;ctx.fillStyle='#ccc';
+      // Name
+      ctx.font=`bold ${Math.round(13*s)}px monospace`;ctx.textAlign='left';outlineText(ctx,c.name,textL,cy+34,c.color||'#fff');
+      // Description (word-wrapped)
+      ctx.font=`${Math.round(10*s)}px monospace`;ctx.fillStyle='#ccc';ctx.textAlign='left';
       const words=c.desc.split(' ');let line='',ly=cy+50;
       const lineH=Math.round(13*s);
-      for(const w of words){const t=line+w+' ';if(ctx.measureText(t).width>cw-24){ctx.fillText(line.trim(),cx+cw/2,ly);line=w+' ';ly+=lineH}else line=t}
-      ctx.fillText(line.trim(),cx+cw/2,ly);
-      if((c.type==='newWeapon'||c.type==='upgradeWeapon')&&c.id){
-        const wdef=WEAPON_DEFS[c.id];
+      for(const w of words){const t=line+w+' ';if(ctx.measureText(t).width>textW){ctx.fillText(line.trim(),textL,ly);line=w+' ';ly+=lineH}else line=t}
+      ctx.fillText(line.trim(),textL,ly);
+      // Evolution hint
+      const wid=c.id||c.weaponId;
+      if((c.type==='newWeapon'||c.type==='upgradeWeapon')&&wid){
+        const wdef=WEAPON_DEFS[wid];
         if(wdef&&wdef.evolvePair){const pName=PASSIVE_DEFS[wdef.evolvePair]?PASSIVE_DEFS[wdef.evolvePair].name:wdef.evolvePair;
-          ctx.font=`bold ${Math.round(9*s)}px monospace`;ctx.fillStyle='#ffcc44';ctx.fillText(`Evolves: ${pName}`,cx+cw/2,cy+ch-8)}}
+          ctx.font=`bold ${Math.round(9*s)}px monospace`;ctx.fillStyle='#ffcc44';ctx.textAlign='center';ctx.fillText(`Evolves: ${pName}`,cx+cw/2,cy+ch-8)}}
       if(hover&&Input.mouse.clicked){applyLevelUpChoice(c);pendingLevelUps--;Sound.play('menuSelect');if(pendingLevelUps>0)levelUpChoices=generateLevelUpChoices();else Game.changeState('playing')}
     }
   } else {
-    // Landscape/desktop: side-by-side cards
+    // Landscape/desktop: side-by-side cards with icon above text
     const cw=Math.min(Math.round(240*s),Math.floor((W-60)/levelUpChoices.length-16)),ch=Math.min(Math.round(180*s),H-titleY-80),cg=Math.round(14*s);
     const tcw=levelUpChoices.length*(cw+cg)-cg,startX=W/2-tcw/2,cy=titleY+60;
     for(let i=0;i<levelUpChoices.length;i++){
@@ -3958,18 +4003,34 @@ function drawLevelUpScreen(ctx){
       const hover=Input.mouse.x>=cx&&Input.mouse.x<=cx+cw&&Input.mouse.y>=cy&&Input.mouse.y<=cy+ch;
       ctx.fillStyle=hover?'rgba(60,60,80,0.95)':'rgba(30,30,45,0.95)';ctx.fillRect(cx,cy,cw,ch);
       ctx.strokeStyle=CONFIG.COLORS[c.rarity]||'#666';ctx.lineWidth=hover?4:2;ctx.strokeRect(cx,cy,cw,ch);
+      // Rarity + type badges
       ctx.font=`bold ${Math.round(10*s)}px monospace`;ctx.fillStyle=CONFIG.COLORS[c.rarity]||'#666';ctx.textAlign='left';ctx.fillText(c.rarity,cx+10,cy+18);
       ctx.textAlign='right';ctx.fillStyle='#999';ctx.fillText(c.type.replace('new','NEW ').replace('upgrade','UP '),cx+cw-10,cy+18);
-      ctx.font=`bold ${Math.round(14*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,c.name,cx+cw/2,cy+42,c.color||'#fff');
-      ctx.font=`${Math.round(11*s)}px monospace`;ctx.fillStyle='#ccc';
-      const words=c.desc.split(' ');let line='',ly=cy+62;
+      // Icon (centered)
+      const iconFn=getChoiceIcon(c);
+      const iconSz=Math.min(Math.round(48*s),Math.round(ch*0.28),Math.round(cw*0.4));
+      const iconYOff=Math.round(24*s);
+      let nameY=cy+42; // default if no icon
+      if(iconFn){
+        const ix=cx+cw/2-iconSz/2,iy=cy+iconYOff;
+        ctx.fillStyle='rgba(0,0,0,0.35)';ctx.beginPath();ctx.arc(cx+cw/2,iy+iconSz/2,iconSz/2+4,0,Math.PI*2);ctx.fill();
+        iconFn(ctx,ix,iy,iconSz);
+        nameY=cy+iconYOff+iconSz+Math.round(14*s);
+      }
+      // Name
+      ctx.font=`bold ${Math.round(14*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,c.name,cx+cw/2,nameY,c.color||'#fff');
+      // Description (word-wrapped)
+      ctx.font=`${Math.round(11*s)}px monospace`;ctx.fillStyle='#ccc';ctx.textAlign='center';
+      const words=c.desc.split(' ');let line='',ly=nameY+Math.round(18*s);
       const lineH=Math.round(15*s);
       for(const w of words){const t=line+w+' ';if(ctx.measureText(t).width>cw-20){ctx.fillText(line.trim(),cx+cw/2,ly);line=w+' ';ly+=lineH}else line=t}
       ctx.fillText(line.trim(),cx+cw/2,ly);
-      if((c.type==='newWeapon'||c.type==='upgradeWeapon')&&c.id){
-        const wdef=WEAPON_DEFS[c.id];
+      // Evolution hint
+      const wid=c.id||c.weaponId;
+      if((c.type==='newWeapon'||c.type==='upgradeWeapon')&&wid){
+        const wdef=WEAPON_DEFS[wid];
         if(wdef&&wdef.evolvePair){const pName=PASSIVE_DEFS[wdef.evolvePair]?PASSIVE_DEFS[wdef.evolvePair].name:wdef.evolvePair;
-          ctx.font=`bold ${Math.round(10*s)}px monospace`;ctx.fillStyle='#ffcc44';ctx.fillText(`Evolves with: ${pName}`,cx+cw/2,cy+ch-10)}}
+          ctx.font=`bold ${Math.round(10*s)}px monospace`;ctx.fillStyle='#ffcc44';ctx.textAlign='center';ctx.fillText(`Evolves with: ${pName}`,cx+cw/2,cy+ch-10)}}
       if(hover&&Input.mouse.clicked){applyLevelUpChoice(c);pendingLevelUps--;Sound.play('menuSelect');if(pendingLevelUps>0)levelUpChoices=generateLevelUpChoices();else Game.changeState('playing')}
     }
   }
