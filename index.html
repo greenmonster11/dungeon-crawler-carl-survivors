@@ -3345,16 +3345,21 @@ function drawGround(ctx){
   for(let y=sr;y<er;y++){for(let x=sc;x<ec;x++){
     const v=tilemap[y][x];
     const variant = tileVariantFromNoise(v);
-    const texture = MapTileAssets.get(floorNum, variant);
     const dx = x*ts, dy = y*ts;
-    if(texture && texture.complete && texture.naturalWidth>0){
-      ctx.drawImage(texture, dx, dy, ts, ts);
-    }else{
+    if(isMobile){
       ctx.fillStyle=colors[variant-1]||colors[0];
       ctx.fillRect(dx,dy,ts,ts);
+    }else{
+      const texture = MapTileAssets.get(floorNum, variant);
+      if(texture && texture.complete && texture.naturalWidth>0){
+        ctx.drawImage(texture, dx, dy, ts, ts);
+      }else{
+        ctx.fillStyle=colors[variant-1]||colors[0];
+        ctx.fillRect(dx,dy,ts,ts);
+      }
+      ctx.strokeStyle='rgba(255,255,255,0.03)';
+      ctx.strokeRect(dx,dy,ts,ts);
     }
-    ctx.strokeStyle='rgba(255,255,255,0.03)';
-    ctx.strokeRect(dx,dy,ts,ts);
   }}
 }
 
