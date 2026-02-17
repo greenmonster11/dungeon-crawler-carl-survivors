@@ -1420,21 +1420,32 @@ const Input = {
     canvas.addEventListener('touchstart',e=>{
       e.preventDefault();this.isTouchDevice=true;Sound.resume();
       const isActivePlaying=Game.state==='playing';
+      const isPortraitMobile=isMobile&&W<H;
       for(const t of e.changedTouches){
         const r=canvas.getBoundingClientRect();
         const tx=(t.clientX-r.left)*(W/r.width);
         const ty=(t.clientY-r.top)*(H/r.height);
-        if(isActivePlaying&&(isMobile?ty>H*0.45:tx>W*0.5)&&!this.joystick.active){
-          // Bottom half (portrait) or right half (landscape) during active gameplay only: joystick
-          // NOT during paused/levelUp — those need taps for buttons
+        const inPortraitStickZone=isPortraitMobile&&ty>H*0.34&&tx<W*0.82;
+        const inLandscapeStickZone=!isPortraitMobile&&tx>W*0.5;
+        if(isActivePlaying&&!this.joystick.active&&(inPortraitStickZone||inLandscapeStickZone)){
+          // During active gameplay capture movement touches as joystick.
+          // Portrait defaults to a left-thumb zone to improve one-hand control.
           this.joystick.active=true;this.joystick.id=t.identifier;
-          this.joystick.startX=tx;this.joystick.startY=ty;
+          if(isPortraitMobile){
+            const margin=Math.round(Math.max(24,24*UI_SCALE));
+            const joyR=Math.round(Math.min(55*UI_SCALE,W*0.12));
+            this.joystick.startX=clamp(tx,joyR+margin,W*0.48);
+            this.joystick.startY=clamp(ty,H*0.55,H-joyR-margin);
+          }else{
+            this.joystick.startX=tx;this.joystick.startY=ty;
+          }
           this.joystick.curX=tx;this.joystick.curY=ty;
           this.joystick.dx=0;this.joystick.dy=0;
         } else {
-          // Menu state, paused, level-up, or left half during gameplay: tap = click
+          // In active gameplay, only top HUD taps should click (pause/pace/etc).
           this.mouse.x=tx;this.mouse.y=ty;this.mouse.clicked=true;
-          this._handledTouches.add(t.identifier);
+          if(!isActivePlaying||ty<H*0.24){this._handledTouches.add(t.identifier)}
+          else{this.mouse.clicked=false}
         }
       }
     },{passive:false});
@@ -1544,7 +1555,11 @@ const Camera = {
 
 // === PARTICLE SYSTEM ===
 let particles = [];
-function spawnParticle(x,y,opts={}){particles.push({x,y,vx:opts.vx||(Math.random()-0.5)*100,vy:opts.vy||(Math.random()-0.5)*100,life:opts.life||0.5,maxLife:opts.life||0.5,size:opts.size||3,color:opts.color||'#ffffff',type:opts.type||'spark',text:opts.text||null,gravity:opts.gravity||0,shrink:opts.shrink!==undefined?opts.shrink:true})}
+function spawnParticle(x,y,opts={}){
+  const maxParticles=isMobile?260:420;
+  if(particles.length>=maxParticles)return;
+  particles.push({x,y,vx:opts.vx||(Math.random()-0.5)*100,vy:opts.vy||(Math.random()-0.5)*100,life:opts.life||0.5,maxLife:opts.life||0.5,size:opts.size||3,color:opts.color||'#ffffff',type:opts.type||'spark',text:opts.text||null,gravity:opts.gravity||0,shrink:opts.shrink!==undefined?opts.shrink:true})
+}
 function spawnDamageNumber(x,y,amount,color='#ffffff'){spawnParticle(x,y,{vx:(Math.random()-0.5)*40,vy:-80-Math.random()*40,life:0.8,type:'text',text:typeof amount==='string'?amount:Math.floor(amount).toString(),color,size:amount>20?20:15,gravity:60,shrink:false})}
 function spawnExplosion(x,y,count,color){for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=50+Math.random()*150;spawnParticle(x,y,{vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0.3+Math.random()*0.3,size:2+Math.random()*3,color})}}
 function spawnXPBurst(x,y){for(let i=0;i<5;i++){const a=Math.random()*Math.PI*2;spawnParticle(x,y,{vx:Math.cos(a)*60,vy:Math.sin(a)*60,life:0.3,size:2,color:CONFIG.COLORS.XP_GEM})}}
@@ -1559,7 +1574,8 @@ const AmbientFX={
   update(dt){
     this.timer-=dt;
     if(this.timer<=0&&FloorManager.currentFloor){
-      this.timer=0.15;
+      this.timer=isMobile?0.24:0.15;
+      if(isMobile&&this.particles.length>90)return;
       const fn=FloorManager.floorNumber;
       const cx=Camera.x+Math.random()*W,cy=Camera.y+Math.random()*H;
       if(fn===3)this.particles.push({x:cx,y:cy,vy:20+Math.random()*30,vx:(Math.random()-0.5)*15,life:3,maxLife:3,size:2,color:'#ddeeff',type:'snow'});
@@ -3370,9 +3386,10 @@ function drawTouchControls(ctx){
   if(Game.state==='playing'){
     const j=Input.joystick;
     const s=UI_SCALE;
+    const isPortrait=isMobile&&W<H;
     // Joystick: bottom-right for portrait, sized to screen
     const joyR=Math.round(Math.min(55*s, W*0.12));
-    const baseX=j.active?j.startX:W-joyR-Math.round(25*s);
+    const baseX=j.active?j.startX:(isPortrait?joyR+Math.round(25*s):W-joyR-Math.round(25*s));
     const baseY=j.active?j.startY:H-joyR-Math.round(25*s);
     const maxR=joyR;
     ctx.globalAlpha=0.25;ctx.strokeStyle='#ffffff';ctx.lineWidth=3;
