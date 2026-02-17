@@ -35,3 +35,21 @@ This repo is an unofficial fan game inspired by the Dungeon Crawler Carl univers
 3. Character voice consistency (Carl, Donut, Mordecai-adjacent commentary tone).
 4. Floor theming that feels like curated "show content" instead of random biomes.
 
+## Pixel Art Generation Rules (Performance + Tone)
+
+- Prefer pixel art only for runtime game assets (bosses, mobs, UI plates, pickups).
+- Generate at small base sizes (`32x32`, `48x48`, `64x64`) and upscale with nearest-neighbor.
+- Keep palettes tight (8-18 colors per asset) with strong value contrast and minimal alpha blending.
+- Avoid painterly gradients, motion blur, and high-frequency detail that turns to visual noise on phones.
+- Keep silhouettes readable at arm's length in portrait mode.
+
+### DCC-inspired visual cues
+
+- Arena TV framing: warning stripes, sponsor framing bars, broadcast overlays.
+- Corporate cruelty: sterile labels, hazard colors, "productized violence" motifs.
+- Brutal-comic vibe: exaggerated enemy shapes, high-contrast hit flashes, readable threat tells.
+
+### Canon safety
+
+- Use "DCC-inspired" for uncertain references.
+- Avoid claiming fan-wiki-only details as hard canon.
