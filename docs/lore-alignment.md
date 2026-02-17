@@ -22,6 +22,17 @@ This repo is an unofficial fan game inspired by the Dungeon Crawler Carl univers
   - frame every moment as an event for viewers
   - reinforce that danger is a product
 
+## Boss Announcer Script Rules
+
+- Give each boss a unique "broadcast identity":
+  - one intro line (arrival)
+  - one broadcast line (ratings framing)
+  - one line per phase transition
+- Keep phase lines short, sharp, and production-minded.
+- Prefer corporate language over fantasy language.
+- Make it sound like a live sports broadcast controlled by a hostile company.
+- If a specific lore detail is uncertain, keep wording DCC-inspired rather than canonical.
+
 ## Content boundaries
 
 - Avoid explicit sexualized fetish jokes in core system messaging.

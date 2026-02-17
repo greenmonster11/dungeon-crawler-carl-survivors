@@ -1777,6 +1777,7 @@ const FloorManager = {
   currentFloor: null,
   floorNumber: 0,
   floorTimer: 0,
+  bossGraceTimer: 0,
   stairwellOpen: false,
   stairwellX: 0, stairwellY: 0,
   bossSpawned: false,
@@ -1788,6 +1789,7 @@ const FloorManager = {
     this.floorNumber = floorNum;
     this.currentFloor = FLOOR_DEFS[Math.min(floorNum - 1, FLOOR_DEFS.length - 1)];
     this.floorTimer = 0;
+    this.bossGraceTimer = 0;
     this.stairwellOpen = false;
     this.bossSpawned = false;
     this.bossDefeated = false;
@@ -1814,6 +1816,7 @@ const FloorManager = {
     }
 
     this.floorTimer += dt;
+    if(this.bossGraceTimer>0)this.bossGraceTimer-=dt;
 
     if (!this.stairwellOpen && this.floorTimer >= this.currentFloor.surviveTime) {
       this.stairwellOpen = true;
@@ -1848,6 +1851,7 @@ const FloorManager = {
     const bossY = this.stairwellY + (Math.random() - 0.5) * 100;
     boss = createBoss(this.currentFloor.bossId, bossX, bossY, this.currentFloor.difficultyMult);
     enemies.push(boss);
+    this.bossGraceTimer = clamp(3.2 - this.floorNumber * 0.2, 1.4, 3.2);
     ShowDirector.onBossSpawn();
     Sound.play('bossRoar');
     Camera.shake = 15;
@@ -1856,7 +1860,7 @@ const FloorManager = {
     triggerScreenFlash('#ff2200',0.3);
     ViewerChat.post('ModeratorBot', `BOSS: ${boss.bossName}`, '#ff4444');
     ViewerChat.post('BorantOfficial', boss.introLine || 'The crawler faces a worthy adversary.', '#ff4444');
-    DungeonAI.onBossSpawn(boss.bossName);
+    DungeonAI.onBossSpawn(boss.bossName, boss.broadcastLine || '');
   },
 
   startTransition() {
@@ -2102,46 +2106,64 @@ const ENEMY_DEFS = {
 const BOSS_DEFS = {
   boroughBoss: { name:'The Hoarder', hp:600, speed:45, damage:20, w:56, h:56, color:'#cc3322', xpValue:150,
     subtitle:'Audience-tested brute', introLine:'Sponsor note: this one hoards bones and ratings.',
+    broadcastLine:'The Hoarder enters. Corporate predicts structural damage and delightful panic.',
+    phaseLines:['Hoard protocol initialized.','Temper spike detected. Stakeholders are delighted.','Final tantrum phase. Keep cameras tight.'],
     auraColor:'#ff7744', telegraphColor:'#ff4422',
     abilitySet:['groundSlam','radialBurst'],
     phases:[{hp:1,pattern:'charge'},{hp:0.5,pattern:'summon'},{hp:0.25,pattern:'enrage'}] },
   mineOverlord: { name:'Porkchop Express', hp:900, speed:35, damage:28, w:60, h:60, color:'#888844', xpValue:250,
     subtitle:'Explosive rail tyrant', introLine:'Betting market opened on structural collapse timing.',
+    broadcastLine:'Porkchop Express is live. Falling debris is now a sponsored event.',
+    phaseLines:['Rail cannons warming.','Demolition phase armed.','Critical overdrive. Evacuation denied.'],
     auraColor:'#ffcc44', telegraphColor:'#ffdd66',
     abilitySet:['dashChain','summonRing'],
     phases:[{hp:1,pattern:'charge'},{hp:0.6,pattern:'summon'},{hp:0.3,pattern:'enrage'}] },
   frostWarden: { name:'The Iron Tangle Guardian', hp:1300, speed:40, damage:32, w:64, h:64, color:'#4488cc', xpValue:400,
     subtitle:'Cold steel sentinel', introLine:'Reminder: hypothermia deaths trend extremely well.',
+    broadcastLine:'Guardian engagement confirmed. Cryogenic trauma package now active.',
+    phaseLines:['Warden lock acquired.','Defensive lattice fractured.','Core freeze tantrum detected.'],
     auraColor:'#88ccff', telegraphColor:'#99e6ff',
     abilitySet:['radialBurst','summonRing'],
     phases:[{hp:1,pattern:'charge'},{hp:0.5,pattern:'summon'},{hp:0.2,pattern:'enrage'}] },
   huntMaster: { name:'The Bubble Boss', hp:1800, speed:55, damage:36, w:62, h:62, color:'#886622', xpValue:500,
     subtitle:'Predator-in-chief', introLine:'Corporate guidance: running is content, screaming is premium content.',
+    broadcastLine:'HuntMaster deployed. Flight response metrics are now monetized.',
+    phaseLines:['Predator lock established.','Pack-hunt cadence initiated.','Blood-rush finale. Do not blink.'],
     auraColor:'#c8a060', telegraphColor:'#ffd788',
     abilitySet:['dashChain','groundSlam'],
     phases:[{hp:1,pattern:'charge'},{hp:0.5,pattern:'summon'},{hp:0.2,pattern:'enrage'}] },
   pyroclast: { name:'Scolopendra', hp:2400, speed:40, damage:42, w:66, h:66, color:'#ff3300', xpValue:700,
     subtitle:'Molten alpha specimen', introLine:'Hazard disclosure: spontaneous combustion remains possible.',
+    broadcastLine:'Scolopendra breach confirmed. Thermal anguish now streaming in 4K.',
+    phaseLines:['Magma pressure rising.','Volcanic shell cracked.','Terminal eruption state reached.'],
     auraColor:'#ff7733', telegraphColor:'#ff9966',
     abilitySet:['groundSlam','summonRing'],
     phases:[{hp:1,pattern:'charge'},{hp:0.6,pattern:'summon'},{hp:0.25,pattern:'enrage'}] },
   grandArchivist: { name:'The Butcher King', hp:3100, speed:38, damage:48, w:70, h:70, color:'#6644aa', xpValue:900,
     subtitle:'Curator of pain', introLine:'Library policy update: silence will not be enforced.',
+    broadcastLine:'Archivist enters the floor. Every scream is now indexed and searchable.',
+    phaseLines:['Catalog sequence started.','Torture annex unlocked.','Final chapter: dismemberment.'],
     auraColor:'#aa88ff', telegraphColor:'#d2bbff',
     abilitySet:['summonRing','radialBurst'],
     phases:[{hp:1,pattern:'summon'},{hp:0.5,pattern:'charge'},{hp:0.2,pattern:'enrage'}] },
   leviathanEcho: { name:'The Krakaren', hp:4000, speed:35, damage:55, w:76, h:76, color:'#2266aa', xpValue:1200,
     subtitle:'Depth-pressure nightmare', introLine:'Sponsor challenge: survive the splash zone.',
+    broadcastLine:'Krakaren signature acquired. Deep-ocean terror mode is now live.',
+    phaseLines:['Pressure wave inbound.','Hull integrity failing.','Abyssal feeding frenzy active.'],
     auraColor:'#44bbff', telegraphColor:'#88ddff',
     abilitySet:['dashChain','radialBurst'],
     phases:[{hp:1,pattern:'charge'},{hp:0.5,pattern:'summon'},{hp:0.15,pattern:'enrage'}] },
   theNamelessOne: { name:'The Specter of Earth', hp:5200, speed:42, damage:60, w:80, h:80, color:'#6622cc', xpValue:1600,
     subtitle:'Identity-redacted entity', introLine:'Viewer advisory: existential panic is not covered by insurance.',
+    broadcastLine:'Nameless One manifested. Legal has requested we avoid direct eye contact.',
+    phaseLines:['Ontology breach detected.','Reality seams are opening.','Identity-collapse climax is underway.'],
     auraColor:'#bb77ff', telegraphColor:'#ee99ff',
     abilitySet:['groundSlam','dashChain'],
     phases:[{hp:1,pattern:'summon'},{hp:0.4,pattern:'charge'},{hp:0.15,pattern:'enrage'}] },
   borantDestroyer: { name:'Borant the World Ender', hp:6000, speed:50, damage:70, w:90, h:90, color:'#ff6600', xpValue:2500,
     subtitle:'Flagship execution model', introLine:'Finale package unlocked. Please die spectacularly.',
+    broadcastLine:'Flagship Destroyer online. This is the premium death-slot finale.',
+    phaseLines:['Executive violence mode engaged.','Shareholder fury protocol active.','World-ending closeout sequence initiated.'],
     auraColor:'#ffaa44', telegraphColor:'#ffcc66',
     abilitySet:['radialBurst','groundSlam','summonRing','dashChain'],
     phases:[{hp:1,pattern:'charge'},{hp:0.6,pattern:'summon'},{hp:0.3,pattern:'enrage'}] },
@@ -2154,6 +2176,11 @@ const BOSS_ABILITY_COOLDOWNS = {
   dashChain: 7.4,
 };
 
+function bossDamageWithGrace(baseDamage){
+  if(FloorManager.bossGraceTimer>0)return Math.max(1,Math.floor(baseDamage*0.62));
+  return baseDamage;
+}
+
 const BossAbilityHandlers = {
   radialBurst(bossEntity, target, phaseIdx) {
     const radius = 110 + phaseIdx * 20;
@@ -2163,7 +2190,7 @@ const BossAbilityHandlers = {
       resolve:()=>{
         spawnExplosion(bossEntity.x, bossEntity.y, 8, bossEntity.telegraphColor);
         if (player && dist(bossEntity.x, bossEntity.y, player.x, player.y) <= radius) {
-          player.takeDamage(Math.floor(bossEntity.damage * 0.75));
+          player.takeDamage(bossDamageWithGrace(Math.floor(bossEntity.damage * 0.75)));
         }
       }
     });
@@ -2178,7 +2205,7 @@ const BossAbilityHandlers = {
       resolve:()=>{
         spawnExplosion(tx, ty, 10, '#ff4422');
         if (player && dist(tx, ty, player.x, player.y) <= radius) {
-          player.takeDamage(Math.floor(bossEntity.damage * 0.85));
+          player.takeDamage(bossDamageWithGrace(Math.floor(bossEntity.damage * 0.85)));
         }
       }
     });
@@ -2216,7 +2243,7 @@ const BossAbilityHandlers = {
         bossEntity.x = toX; bossEntity.y = toY;
         spawnExplosion(toX, toY, 8, '#ffbb66');
         if (player && distToSegment(player.x, player.y, fromX, fromY, toX, toY) < (isMobile ? 24 : 28)) {
-          player.takeDamage(Math.floor(bossEntity.damage * 0.95));
+          player.takeDamage(bossDamageWithGrace(Math.floor(bossEntity.damage * 0.95)));
         }
       }
     });
@@ -2240,10 +2267,13 @@ function createBoss(bossId, x, y, mult = 1) {
   e.phases = def.phases;
   e.subtitle = def.subtitle || '';
   e.introLine = def.introLine || 'The audience demands spectacle.';
+  e.broadcastLine = def.broadcastLine || '';
+  e.phaseLines = def.phaseLines || [];
   e.auraColor = def.auraColor || def.color;
   e.telegraphColor = def.telegraphColor || '#ffffff';
   e.abilitySet = def.abilitySet || ['radialBurst', 'groundSlam'];
   e.abilityTimers = {};
+  e.abilityGlobalLock = 0;
   e.currentPhase = 0;
   e.phaseTimer = 0;
   e.chargeTimer = 0;
@@ -2257,14 +2287,17 @@ function createBoss(bossId, x, y, mult = 1) {
   }
 
   e.tryAbilities = function(dt, target, phaseIdx) {
+    this.abilityGlobalLock -= dt;
+    if(this.abilityGlobalLock > 0)return;
     for (const abilityId of this.abilitySet) {
       this.abilityTimers[abilityId] -= dt;
       if (this.abilityTimers[abilityId] > 0) continue;
       const handler = BossAbilityHandlers[abilityId];
       if (handler) handler(this, target, phaseIdx);
       const baseCd = BOSS_ABILITY_COOLDOWNS[abilityId] || 6;
-      const phaseScale = phaseIdx >= 2 ? 0.75 : (phaseIdx === 1 ? 0.88 : 1);
-      this.abilityTimers[abilityId] = baseCd * phaseScale;
+      const phaseScale = phaseIdx >= 2 ? 0.82 : (phaseIdx === 1 ? 0.92 : 1);
+      this.abilityTimers[abilityId] = baseCd * phaseScale + Math.random() * 0.45;
+      this.abilityGlobalLock = phaseIdx >= 2 ? 0.75 : 1.0;
       break;
     }
   };
@@ -2277,7 +2310,12 @@ function createBoss(bossId, x, y, mult = 1) {
     for (let i = this.phases.length - 1; i >= 0; i--) {
       if (hpPct <= this.phases[i].hp) { phase = this.phases[i]; phaseIdx=i; break; }
     }
-    if(phaseIdx!==this.currentPhase){this.currentPhase=phaseIdx;triggerScreenFlash('#ffffff',0.2);Camera.shake=12}
+    if(phaseIdx!==this.currentPhase){
+      this.currentPhase=phaseIdx;triggerScreenFlash('#ffffff',0.2);Camera.shake=12;
+      const phaseLine=this.phaseLines[this.currentPhase];
+      this.abilityGlobalLock = Math.max(this.abilityGlobalLock, 0.6);
+      if(phaseLine)DungeonAI.queue(`${this.bossName} PHASE ${this.currentPhase+1}`,phaseLine,'#ff6688',3.4);
+    }
     this.tryAbilities(dt, target, phaseIdx);
 
     const spd = phase.pattern === 'enrage' ? this.speed * 1.8 : this.speed;
@@ -2648,8 +2686,8 @@ const DungeonAI = {
   },
 
   // Fire boss announcement
-  onBossSpawn(bossName) {
-    const msg = randomFrom(this.BOSS_MESSAGES);
+  onBossSpawn(bossName, preferredLine='') {
+    const msg = preferredLine || randomFrom(this.BOSS_MESSAGES);
     this.queue(`BOSS: ${bossName}`, msg, '#ff4444', 4);
   },
 
@@ -3540,7 +3578,7 @@ function drawPickups(ctx){
   }
 }
 
-function checkEnemyPlayerCollision(dt){if(!player||player.hp<=0)return;const checkRadius=player.w/2+32;const nearby=SpatialGrid.query(player.x,player.y,checkRadius);for(const e of nearby){if(!e.alive)continue;if(dist(player.x,player.y,e.x,e.y)<(player.w/2+e.w/2)){player.takeDamage(e.damage);const a=angle(player.x,player.y,e.x,e.y);e.x+=Math.cos(a)*20;e.y+=Math.sin(a)*20}}}
+function checkEnemyPlayerCollision(dt){if(!player||player.hp<=0)return;const checkRadius=player.w/2+32;const nearby=SpatialGrid.query(player.x,player.y,checkRadius);for(const e of nearby){if(!e.alive)continue;if(dist(player.x,player.y,e.x,e.y)<(player.w/2+e.w/2)){let dmg=e.damage;if(e.isBoss&&FloorManager.bossGraceTimer>0)dmg=Math.max(1,Math.floor(dmg*0.62));player.takeDamage(dmg);const a=angle(player.x,player.y,e.x,e.y);e.x+=Math.cos(a)*20;e.y+=Math.sin(a)*20}}}
 function despawnFarEnemies(){for(let i=enemies.length-1;i>=0;i--){const e=enemies[i];if(!e.alive){enemies.splice(i,1);continue}if(e.isBoss)continue;if(dist(player.x,player.y,e.x,e.y)>CONFIG.ENEMY_DESPAWN_RADIUS)enemies.splice(i,1)}}
 
 // === LEVEL UP SYSTEM ===
