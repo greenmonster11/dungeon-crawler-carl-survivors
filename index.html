@@ -150,6 +150,20 @@ const MapTileAssets = {
   }
 };
 
+const UiArtAssets = {
+  titlePortrait: null,
+  sponsorPanel: null,
+  load() {
+    this.titlePortrait = new Image();
+    this.titlePortrait.src = 'assets/ui/title-backdrop-portrait.webp';
+    this.sponsorPanel = new Image();
+    this.sponsorPanel.src = 'assets/ui/sponsor-contract-panel.webp';
+  },
+  ready(img) {
+    return !!(img && img.complete && img.naturalWidth > 0);
+  }
+};
+
 // === SPRITE CACHE ===
 const SpriteCache={
   sprites:{}, canvases:{},
@@ -3445,6 +3459,12 @@ function drawHUD(ctx){
     const row5Y=row4Y+Math.round(12*s);
     let contract=ShowDirector.objectiveText();
     if(contract.length>68)contract=contract.slice(0,66)+'..';
+    if(UiArtAssets.ready(UiArtAssets.sponsorPanel)){
+      const pw=Math.round(W*0.92),ph=Math.round(20*s),px=Math.round((W-pw)/2),py=row5Y-Math.round(11*s);
+      ctx.globalAlpha=0.72;
+      ctx.drawImage(UiArtAssets.sponsorPanel,px,py,pw,ph);
+      ctx.globalAlpha=1;
+    }
     ctx.font=`${Math.round(8*s)}px monospace`;
     ctx.textAlign='center';
     outlineText(ctx,contract,W/2,row5Y,'#66ccff');
@@ -3483,6 +3503,12 @@ function drawHUD(ctx){
     outlineText(ctx,`BB: ${MetaProgress.data.runBBCounter||0}`,rCol,Math.round(72*s),'#ffcc44');
     let contract=ShowDirector.objectiveText();
     if(contract.length>84)contract=contract.slice(0,82)+'..';
+    if(UiArtAssets.ready(UiArtAssets.sponsorPanel)){
+      const pw=Math.round(Math.min(W*0.62,640*s)),ph=Math.round(24*s),px=Math.round(W/2-pw/2),py=Math.round(40*s);
+      ctx.globalAlpha=0.68;
+      ctx.drawImage(UiArtAssets.sponsorPanel,px,py,pw,ph);
+      ctx.globalAlpha=1;
+    }
     ctx.font=`${Math.round(10*s)}px monospace`;
     ctx.textAlign='center';
     outlineText(ctx,contract,W/2,Math.round(54*s),'#66ccff');
@@ -3640,7 +3666,13 @@ function drawPauseScreen(ctx){
 
 // === TITLE SCREEN ===
 function drawTitleScreen(ctx){
-  ctx.fillStyle='#0a0a14';ctx.fillRect(0,0,W,H);
+  const isPortrait=isMobile&&W<H;
+  if(isPortrait&&UiArtAssets.ready(UiArtAssets.titlePortrait)){
+    ctx.drawImage(UiArtAssets.titlePortrait,0,0,W,H);
+    ctx.fillStyle='rgba(8,8,16,0.55)';ctx.fillRect(0,0,W,H);
+  }else{
+    ctx.fillStyle='#0a0a14';ctx.fillRect(0,0,W,H);
+  }
   const t=performance.now()/1000;
   const s=UI_SCALE;
   for(let i=0;i<50;i++){ctx.fillStyle=`rgba(68,255,170,${0.1+Math.sin(t+i)*0.05})`;ctx.fillRect((Math.sin(t*0.3+i*1.7)*0.5+0.5)*W,(Math.cos(t*0.2+i*2.3)*0.5+0.5)*H,2,2)}
@@ -3652,7 +3684,6 @@ function drawTitleScreen(ctx){
   while(titleFs>14 && ctx.measureText('DUNGEON CRAWLER CARL').width>W-30){titleFs--;ctx.font=`bold ${titleFs}px monospace`}
   ctx.textAlign='center';outlineText(ctx,'DUNGEON CRAWLER CARL',W/2,topY,'#ff8833','#441100');
   ctx.font=`bold ${Math.min(Math.round(22*s),titleFs-4)}px monospace`;outlineText(ctx,'SURVIVORS',W/2,topY+titleFs+Math.round(6*s),'#44ffaa','#003311');
-  const isPortrait=isMobile&&W<H;
   ctx.font=`bold ${Math.round((isPortrait?9:11)*s)}px monospace`;ctx.fillStyle='#999';
   ctx.fillText(isPortrait?'DCC-inspired arena crawler':'A DCC-inspired arena crawler',W/2,topY+Math.round(58*s));
   // Bezos Boxes display
@@ -4492,7 +4523,7 @@ function gameLoop(now){
   Game.update(dt);Game.draw(ctx);Input.endFrame();requestAnimationFrame(gameLoop);
 }
 
-loadSpriteAssets();MapTileAssets.load();MetaProgress.load();SpriteCache.init();Input.init();requestAnimationFrame(gameLoop);
+loadSpriteAssets();MapTileAssets.load();UiArtAssets.load();MetaProgress.load();SpriteCache.init();Input.init();requestAnimationFrame(gameLoop);
 
 </script>
 </body>
