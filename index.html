@@ -1161,6 +1161,24 @@ Music.TRACKS.victory=function(){
   });
 };
 
+// === AUDIO SETTINGS PERSISTENCE ===
+function loadAudioSettings(){
+  try{
+    const saved=localStorage.getItem('dcc_audio_settings');
+    if(saved){
+      const s=JSON.parse(saved);
+      if(typeof s.sfxVol==='number')Sound.masterVolume=Math.max(0,Math.min(1,s.sfxVol));
+      if(typeof s.sfxMuted==='boolean')Sound.muted=s.sfxMuted;
+      if(typeof s.musicVol==='number')Music.volume=Math.max(0,Math.min(1,s.musicVol));
+      if(typeof s.musicMuted==='boolean')Music.muted=s.musicMuted;
+    }
+  }catch(e){}
+}
+function saveAudioSettings(){
+  try{localStorage.setItem('dcc_audio_settings',JSON.stringify({sfxVol:Sound.masterVolume,sfxMuted:Sound.muted,musicVol:Music.volume,musicMuted:Music.muted}))}catch(e){}
+}
+loadAudioSettings();
+
 // === META-PROGRESSION ===
 const MetaProgress = {
   _defaults: {
@@ -1442,7 +1460,7 @@ async function submitScore() {
 
 // === INPUT MANAGER ===
 const Input = {
-  keys:{}, mouse:{x:0,y:0,clicked:false}, escPressed:false,
+  keys:{}, mouse:{x:0,y:0,clicked:false,down:false}, escPressed:false,
   // Touch / joystick state
   isTouchDevice:false,
   joystick:{active:false,id:null,startX:0,startY:0,curX:0,curY:0,dx:0,dy:0},
@@ -1469,9 +1487,11 @@ const Input = {
     window.addEventListener('keyup',e=>{this.keys[e.code]=false});
     canvas.addEventListener('mousemove',e=>{const r=canvas.getBoundingClientRect();this.mouse.x=(e.clientX-r.left)*(W/r.width);this.mouse.y=(e.clientY-r.top)*(H/r.height)});
     canvas.addEventListener('click',()=>{this.mouse.clicked=true;Sound.resume()});
+    canvas.addEventListener('mousedown',()=>{this.mouse.down=true});
+    canvas.addEventListener('mouseup',()=>{this.mouse.down=false});
     // Touch events
     canvas.addEventListener('touchstart',e=>{
-      e.preventDefault();this.isTouchDevice=true;Sound.resume();
+      e.preventDefault();this.isTouchDevice=true;this.mouse.down=true;Sound.resume();
       const isActivePlaying=Game.state==='playing';
       const isPortraitMobile=isMobile&&W<H;
       for(const t of e.changedTouches){
@@ -1516,7 +1536,7 @@ const Input = {
           if(jd>maxR){jdx=(jdx/jd)*maxR;jdy=(jdy/jd)*maxR;}
           this.joystick.dx=jdx/maxR;this.joystick.dy=jdy/maxR;
         } else {
-          // Move touch on left side → update mouse pos for hover effects
+          // Update mouse pos for hover effects and slider dragging
           const r=canvas.getBoundingClientRect();
           this.mouse.x=(t.clientX-r.left)*(W/r.width);
           this.mouse.y=(t.clientY-r.top)*(H/r.height);
@@ -1525,6 +1545,7 @@ const Input = {
     },{passive:false});
     canvas.addEventListener('touchend',e=>{
       e.preventDefault();
+      this.mouse.down=false;
       for(const t of e.changedTouches){
         if(this.joystick.active&&t.identifier===this.joystick.id){
           this.joystick.active=false;this.joystick.id=null;
@@ -1545,6 +1566,7 @@ const Input = {
     canvas.addEventListener('touchcancel',e=>{
       this.joystick.active=false;this.joystick.id=null;
       this.joystick.dx=0;this.joystick.dy=0;
+      this.mouse.down=false;
       this._handledTouches.clear();
     },{passive:false});
   },
@@ -3710,7 +3732,7 @@ function drawBossHPBar(ctx){
 // === TOUCH CONTROLS ===
 function drawTouchControls(ctx){
   if(!Input.isTouchDevice)return;
-  // Only show joystick + pause button during active gameplay (not paused/levelUp)
+  // Only show joystick during active gameplay (pause button is in HUD)
   if(Game.state==='playing'){
     const j=Input.joystick;
     const s=UI_SCALE;
@@ -3729,12 +3751,6 @@ function drawTouchControls(ctx){
     ctx.globalAlpha=j.active?0.55:0.3;ctx.fillStyle='#ffffff';
     ctx.beginPath();ctx.arc(knobX,knobY,knobR,0,Math.PI*2);ctx.fill();
     ctx.globalAlpha=1;
-    // Pause button top-right corner
-    const pb=Math.round(32*s);
-    ctx.globalAlpha=0.35;ctx.fillStyle='#ffffff';
-    ctx.fillRect(W-pb-12,4,pb+8,pb);
-    ctx.globalAlpha=0.8;ctx.fillStyle='#ffffff';ctx.font=`bold ${Math.round(14*s)}px monospace`;ctx.textAlign='center';
-    ctx.fillText('| |',W-pb/2-8,4+pb*0.7);ctx.globalAlpha=1;
   }
 }
 
@@ -3879,6 +3895,18 @@ function drawHUD(ctx){
     if(lootPopup.timer<=0)lootPopup=null;
   }
 
+  // Pause button (top-right, all devices)
+  if(Game.state==='playing'){
+    const pb=Math.round(32*s);
+    const pbX=W-pb-12,pbY=4,pbW=pb+8,pbH=pb;
+    const pbHover=Input.mouse.x>=pbX&&Input.mouse.x<=pbX+pbW&&Input.mouse.y>=pbY&&Input.mouse.y<=pbY+pbH;
+    ctx.globalAlpha=pbHover?0.55:0.35;ctx.fillStyle='#ffffff';
+    ctx.fillRect(pbX,pbY,pbW,pbH);
+    ctx.globalAlpha=pbHover?1:0.8;ctx.fillStyle='#ffffff';ctx.font=`bold ${Math.round(14*s)}px monospace`;ctx.textAlign='center';
+    ctx.fillText('| |',pbX+pbW/2,pbY+pbH*0.7);ctx.globalAlpha=1;
+    if(pbHover&&Input.mouse.clicked){Game.state='paused';Input.joystick.active=false;Input.joystick.id=null;Input.joystick.dx=0;Input.joystick.dy=0;Input.mouse.clicked=false}
+  }
+
   ctx.restore();
 }
 
@@ -3944,38 +3972,146 @@ function drawLevelUpScreen(ctx){
 }
 
 // === PAUSE SCREEN ===
+let pauseSliderDrag=null; // null, 'sfx', or 'music'
+
 function drawPauseScreen(ctx){
-  ctx.fillStyle='rgba(0,0,0,0.8)';ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(0,0,0,0.85)';ctx.fillRect(0,0,W,H);
   const s=UI_SCALE;
   const isPortrait=isMobile&&W<H;
-  ctx.font=`bold ${Math.round(30*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,'PAUSED',W/2,H/2-Math.round(70*s),'#ffdd44');
-  const btnH=Math.round(42*s),btnGap=Math.round(12*s),bw=Math.min(260,isPortrait?W*0.7:W*0.35);
-  const btns=[
-    {label:'RESUME',y:H/2-Math.round(20*s),h:btnH,color:'#44ffaa',action:()=>{Game.state='playing'}},
-    {label:'QUIT TO TITLE',y:H/2-Math.round(20*s)+btnH+btnGap,h:btnH,color:'#ff6644',action:()=>{Music.stop();Game.changeState('title')}},
-  ];
-  for(const b of btns){
-    const bx=W/2-bw/2;
-    const hover=Input.mouse.x>=bx&&Input.mouse.x<=bx+bw&&Input.mouse.y>=b.y&&Input.mouse.y<=b.y+b.h;
-    ctx.fillStyle=hover?'rgba(60,60,80,0.95)':'rgba(20,20,35,0.95)';ctx.fillRect(bx,b.y,bw,b.h);
-    ctx.strokeStyle=b.color;ctx.lineWidth=hover?4:2;ctx.strokeRect(bx,b.y,bw,b.h);
-    ctx.font=`bold ${Math.round(18*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,b.label,W/2,b.y+b.h/2+Math.round(6*s),b.color);
-    if(hover&&Input.mouse.clicked){Sound.play('menuSelect');b.action()}
-  }
-  // Volume display
-  const volY=btns[1].y+btnH+Math.round(20*s);
-  ctx.font=`bold ${Math.round(12*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,`SFX: ${Sound.muted?'OFF':'ON'}  |  Music Vol: ${Math.round(Music.volume*100)}%`,W/2,volY,'#aaa');
-  // Fullscreen toggle (mobile)
+  const mx=Input.mouse.x,my=Input.mouse.y,clicked=Input.mouse.clicked,mDown=Input.mouse.down;
+
+  // Panel dimensions
+  const pw=Math.min(Math.round(340*s),isPortrait?W*0.88:W*0.42);
+  const panelX=W/2-pw/2;
+  const btnH=Math.round(38*s),btnGap=Math.round(10*s);
+  const sliderH=Math.round(14*s),muteW=Math.round(52*s),muteH=Math.round(28*s);
+  const rowH=Math.round(50*s);
+
+  // Vertical layout: center all content
+  const totalH=btnH+btnGap+rowH+btnGap+rowH+btnGap+btnH+btnGap+(Input.isTouchDevice?btnH+btnGap:Math.round(20*s));
+  let curY=Math.round(H/2-totalH/2-Math.round(30*s));
+
+  // Title
+  ctx.font=`bold ${Math.round(28*s)}px monospace`;ctx.textAlign='center';
+  outlineText(ctx,'PAUSED',W/2,curY,'#ffdd44');
+  curY+=Math.round(40*s);
+
+  // --- RESUME button ---
+  const resumeY=curY;
+  const rbx=panelX,rHover=mx>=rbx&&mx<=rbx+pw&&my>=resumeY&&my<=resumeY+btnH;
+  ctx.fillStyle=rHover?'rgba(60,60,80,0.95)':'rgba(20,20,35,0.95)';ctx.fillRect(rbx,resumeY,pw,btnH);
+  ctx.strokeStyle='#44ffaa';ctx.lineWidth=rHover?4:2;ctx.strokeRect(rbx,resumeY,pw,btnH);
+  ctx.font=`bold ${Math.round(16*s)}px monospace`;ctx.textAlign='center';
+  outlineText(ctx,'RESUME',W/2,resumeY+btnH/2+Math.round(5*s),'#44ffaa');
+  if(rHover&&clicked){Sound.play('menuSelect');Game.state='playing';pauseSliderDrag=null;Input.mouse.clicked=false;return}
+  curY=resumeY+btnH+btnGap;
+
+  // --- SFX Volume slider row ---
+  _drawVolumeRow(ctx,s,panelX,pw,curY,rowH,muteW,muteH,sliderH,
+    'SFX',Sound.muted,Sound.masterVolume,'#44ffaa',
+    function onMute(){Sound.muted=!Sound.muted;saveAudioSettings()},
+    function onVol(v){Sound.masterVolume=v;saveAudioSettings()},
+    'sfx',mx,my,clicked,mDown);
+  curY+=rowH+btnGap;
+
+  // --- Music Volume slider row ---
+  _drawVolumeRow(ctx,s,panelX,pw,curY,rowH,muteW,muteH,sliderH,
+    'MUSIC',Music.muted,Music.volume,'#8888ff',
+    function onMute(){Music.muted=!Music.muted;if(Music.muted)Music.stop();saveAudioSettings()},
+    function onVol(v){Music.volume=v;saveAudioSettings()},
+    'music',mx,my,clicked,mDown);
+  curY+=rowH+btnGap;
+
+  // --- QUIT TO TITLE button ---
+  const quitY=curY;
+  const qHover=mx>=panelX&&mx<=panelX+pw&&my>=quitY&&my<=quitY+btnH;
+  ctx.fillStyle=qHover?'rgba(60,60,80,0.95)':'rgba(20,20,35,0.95)';ctx.fillRect(panelX,quitY,pw,btnH);
+  ctx.strokeStyle='#ff6644';ctx.lineWidth=qHover?4:2;ctx.strokeRect(panelX,quitY,pw,btnH);
+  ctx.font=`bold ${Math.round(16*s)}px monospace`;ctx.textAlign='center';
+  outlineText(ctx,'QUIT TO TITLE',W/2,quitY+btnH/2+Math.round(5*s),'#ff6644');
+  if(qHover&&clicked){Sound.play('menuSelect');Music.stop();pauseSliderDrag=null;Game.changeState('title');Input.mouse.clicked=false;return}
+  curY=quitY+btnH+btnGap;
+
+  // --- Fullscreen toggle (mobile) or ESC hint (desktop) ---
   if(Input.isTouchDevice){
     const fsLabel=isFullscreen()?'EXIT FULLSCREEN':'GO FULLSCREEN';
-    const fsW2=Math.round(180*s),fsH2=Math.round(34*s),fsX=W/2-fsW2/2,fsY=volY+Math.round(16*s);
-    const fsHover=Input.mouse.x>=fsX&&Input.mouse.x<=fsX+fsW2&&Input.mouse.y>=fsY&&Input.mouse.y<=fsY+fsH2;
-    ctx.fillStyle=fsHover?'rgba(60,60,80,0.9)':'rgba(20,20,35,0.9)';ctx.fillRect(fsX,fsY,fsW2,fsH2);
-    ctx.strokeStyle='#aa88ff';ctx.lineWidth=fsHover?4:2;ctx.strokeRect(fsX,fsY,fsW2,fsH2);
-    ctx.font=`bold ${Math.round(13*s)}px monospace`;ctx.textAlign='center';outlineText(ctx,fsLabel,fsX+fsW2/2,fsY+fsH2/2+5,'#aa88ff');
-    if(fsHover&&Input.mouse.clicked){toggleFullscreen();Input.mouse.clicked=false}
+    const fsH=Math.round(34*s);
+    const fsHover=mx>=panelX&&mx<=panelX+pw&&my>=curY&&my<=curY+fsH;
+    ctx.fillStyle=fsHover?'rgba(60,60,80,0.9)':'rgba(20,20,35,0.9)';ctx.fillRect(panelX,curY,pw,fsH);
+    ctx.strokeStyle='#aa88ff';ctx.lineWidth=fsHover?4:2;ctx.strokeRect(panelX,curY,pw,fsH);
+    ctx.font=`bold ${Math.round(13*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,fsLabel,W/2,curY+fsH/2+Math.round(4*s),'#aa88ff');
+    if(fsHover&&clicked){toggleFullscreen();Input.mouse.clicked=false}
   } else {
-    ctx.font=`${Math.round(12*s)}px monospace`;outlineText(ctx,'Press ESC to resume',W/2,volY+Math.round(20*s),'#666');
+    ctx.font=`${Math.round(12*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,'Press ESC to resume',W/2,curY+Math.round(10*s),'#666');
+  }
+
+  // Release slider drag on mouse/touch up
+  if(!mDown)pauseSliderDrag=null;
+}
+
+// Helper: draw a volume row with mute toggle + slider
+function _drawVolumeRow(ctx,s,panelX,pw,y,rowH,muteW,muteH,sliderH,label,isMuted,volume,color,onMute,onVol,dragKey,mx,my,clicked,mDown){
+  const rowBg='rgba(15,15,28,0.9)';
+  ctx.fillStyle=rowBg;ctx.fillRect(panelX,y,pw,rowH);
+  ctx.strokeStyle='rgba(255,255,255,0.1)';ctx.lineWidth=1;ctx.strokeRect(panelX,y,pw,rowH);
+
+  const pad=Math.round(10*s);
+  // Label
+  ctx.font=`bold ${Math.round(11*s)}px monospace`;ctx.textAlign='left';
+  outlineText(ctx,label,panelX+pad,y+Math.round(16*s),isMuted?'#666':color);
+
+  // Mute toggle button (right-aligned in label row)
+  const muteBtnX=panelX+pw-pad-muteW,muteBtnY=y+Math.round(3*s);
+  const muteHover=mx>=muteBtnX&&mx<=muteBtnX+muteW&&my>=muteBtnY&&my<=muteBtnY+muteH;
+  ctx.fillStyle=muteHover?'rgba(80,80,100,0.9)':'rgba(40,40,60,0.9)';
+  ctx.fillRect(muteBtnX,muteBtnY,muteW,muteH);
+  ctx.strokeStyle=isMuted?'#ff4444':'#44ff88';ctx.lineWidth=2;ctx.strokeRect(muteBtnX,muteBtnY,muteW,muteH);
+  ctx.font=`bold ${Math.round(10*s)}px monospace`;ctx.textAlign='center';
+  outlineText(ctx,isMuted?'OFF':'ON',muteBtnX+muteW/2,muteBtnY+muteH/2+Math.round(4*s),isMuted?'#ff4444':'#44ff88');
+  if(muteHover&&clicked){Sound.play('menuSelect');onMute();Input.mouse.clicked=false}
+
+  // Slider track
+  const trackX=panelX+pad,trackW=pw-pad*2,trackY=y+rowH-sliderH-Math.round(8*s);
+  const fillW=trackW*volume;
+  // Track background
+  ctx.fillStyle=isMuted?'rgba(40,40,40,0.8)':'rgba(30,30,50,0.8)';
+  ctx.fillRect(trackX,trackY,trackW,sliderH);
+  // Filled portion
+  ctx.fillStyle=isMuted?'rgba(80,80,80,0.5)':color;
+  ctx.globalAlpha=isMuted?0.3:0.7;
+  ctx.fillRect(trackX,trackY,fillW,sliderH);
+  ctx.globalAlpha=1;
+  // Track border
+  ctx.strokeStyle=isMuted?'#444':'rgba(255,255,255,0.3)';ctx.lineWidth=1;ctx.strokeRect(trackX,trackY,trackW,sliderH);
+  // Knob
+  const knobX=trackX+fillW;
+  const knobR=Math.round(sliderH*0.7);
+  const knobCY=trackY+sliderH/2;
+  ctx.fillStyle=isMuted?'#555':(pauseSliderDrag===dragKey?'#fff':color);
+  ctx.beginPath();ctx.arc(knobX,knobCY,knobR,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(knobX,knobCY,knobR,0,Math.PI*2);ctx.stroke();
+  // Volume percentage text
+  ctx.font=`bold ${Math.round(9*s)}px monospace`;ctx.textAlign='right';
+  outlineText(ctx,`${Math.round(volume*100)}%`,trackX+trackW,trackY-Math.round(3*s),isMuted?'#555':'#ccc');
+
+  // Slider interaction (click or drag)
+  if(!isMuted){
+    const sliderZoneY=trackY-knobR,sliderZoneH=sliderH+knobR*2;
+    const inSlider=mx>=trackX&&mx<=trackX+trackW&&my>=sliderZoneY&&my<=sliderZoneY+sliderZoneH;
+    // Start drag on click in slider area
+    if(inSlider&&clicked){
+      pauseSliderDrag=dragKey;
+      const newVol=Math.max(0,Math.min(1,(mx-trackX)/trackW));
+      onVol(newVol);
+      Input.mouse.clicked=false;
+    }
+    // Continue drag
+    if(pauseSliderDrag===dragKey&&mDown){
+      const newVol=Math.max(0,Math.min(1,(mx-trackX)/trackW));
+      onVol(newVol);
+    }
   }
 }
 
@@ -4767,18 +4903,14 @@ const Game = {
     else if(s==='leaderboard'){fetchLeaderboard();leaderboardScrollY=0}
   },
   update(dt){
-    // Pause toggle (ESC or touch pause button)
-    const pbSz=Math.round(32*UI_SCALE);
-    const touchPause=Input.isTouchDevice&&Input.mouse.clicked&&Input.mouse.x>W-pbSz-20&&Input.mouse.y<pbSz+8;
-    if(Input.escPressed||touchPause){
+    // Pause toggle (ESC key — HUD button click is handled in drawHUD)
+    if(Input.escPressed){
       if(this.state==='playing'){
         this.state='paused';
-        // Release joystick so it doesn't drift while paused
         Input.joystick.active=false;Input.joystick.id=null;Input.joystick.dx=0;Input.joystick.dy=0;
-        if(touchPause)Input.mouse.clicked=false;
         return;
       }
-      else if(this.state==='paused'){this.state='playing';if(touchPause)Input.mouse.clicked=false;return}
+      else if(this.state==='paused'){this.state='playing';pauseSliderDrag=null;return}
     }
     switch(this.state){
       case'paused':break;
