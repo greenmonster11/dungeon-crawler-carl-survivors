@@ -1377,6 +1377,9 @@ const Input = {
     window.addEventListener('keydown',e=>{
       this.keys[e.code]=true;
       if(e.code==='Escape')this.escPressed=true;
+      if(e.code==='KeyT'&&!e.repeat&&(Game.state==='playing'||Game.state==='paused')){
+        PaceControl.toggle();
+      }
       if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();
       // Name entry for leaderboard (skip key repeats to prevent double entry)
       if(scoreSubmitState==='entering'&&!e.repeat){
@@ -1472,6 +1475,24 @@ const Input = {
     return l>0?{x:dx/l,y:dy/l}:{x:0,y:0};
   },
   endFrame(){this.mouse.clicked=false;this.escPressed=false}
+};
+
+const PaceControl = {
+  multiplier: 1,
+  toggle() {
+    this.multiplier = this.multiplier === 1 ? 2 : 1;
+    const mode = this.multiplier === 2 ? '2x pacing enabled' : '1x pacing enabled';
+    ViewerChat.post('ModeratorBot', mode, '#88ddff');
+  },
+  reset() {
+    this.multiplier = 1;
+  },
+  getLabel() {
+    return this.multiplier === 2 ? 'PACE 2x' : 'PACE 1x';
+  },
+  getColor() {
+    return this.multiplier === 2 ? '#44ffaa' : '#88aaff';
+  }
 };
 
 // === FULLSCREEN ===
@@ -3092,8 +3113,18 @@ const Spawner = {
     if(this.spawnTimer<=0){const c=this.getSpawnCount();for(let i=0;i<c;i++)this.spawnEnemy();this.spawnTimer=this.getSpawnRate()}
     if(this.waveTimer>=30){this.waveTimer=0;this.currentWave++;this.spawnHorde()}
   },
-  getSpawnRate(){return Math.max(0.3,1.8-this.gameTime*0.008)},
-  getSpawnCount(){return Math.min(6,1+Math.floor(this.gameTime/25))},
+  getSpawnRate(){
+    let rate=Math.max(0.3,1.8-this.gameTime*0.008);
+    // Early-floor pacing boost so starts don't feel empty.
+    if(FloorManager.floorTimer<20)rate*=0.72;
+    if(PaceControl.multiplier>1)rate*=0.75;
+    return Math.max(0.2,rate);
+  },
+  getSpawnCount(){
+    let count=Math.min(6,1+Math.floor(this.gameTime/25));
+    if(FloorManager.floorTimer<20)count=Math.min(7,count+1);
+    return count;
+  },
   getDifficultyMult(){return FloorManager.currentFloor.difficultyMult*(1+this.gameTime*0.002+this.currentWave*0.08)},
   spawnEnemy(){
     if(!player)return;const pos=this.getSpawnPos();const type=this.pickEnemyType();
@@ -3359,6 +3390,15 @@ function drawHUD(ctx){
     ctx.font=`${Math.round(8*s)}px monospace`;
     ctx.textAlign='center';
     outlineText(ctx,contract,W/2,row5Y,'#66ccff');
+    // Pace control button
+    const pw=Math.round(78*s),ph=Math.round(16*s),px=W-pw-10,py=row5Y+Math.round(2*s);
+    const pHover=Input.mouse.x>=px&&Input.mouse.x<=px+pw&&Input.mouse.y>=py&&Input.mouse.y<=py+ph;
+    ctx.fillStyle=pHover?'rgba(60,60,80,0.95)':'rgba(18,18,30,0.92)';
+    ctx.fillRect(px,py,pw,ph);
+    ctx.strokeStyle=PaceControl.getColor();ctx.lineWidth=1;ctx.strokeRect(px,py,pw,ph);
+    ctx.font=`bold ${Math.round(8*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,PaceControl.getLabel(),px+pw/2,py+Math.round(11*s),PaceControl.getColor());
+    if(pHover&&Input.mouse.clicked){PaceControl.toggle();Input.mouse.clicked=false}
   } else {
     // Desktop/landscape HUD (original)
     const hpW=Math.min(220*s,W*0.28),hpH=Math.round(20*s);
@@ -3388,6 +3428,15 @@ function drawHUD(ctx){
     ctx.font=`${Math.round(10*s)}px monospace`;
     ctx.textAlign='center';
     outlineText(ctx,contract,W/2,Math.round(54*s),'#66ccff');
+    // Pace control button
+    const pw=Math.round(96*s),ph=Math.round(24*s),px=W-pw-Math.round(12*s),py=Math.round(84*s);
+    const pHover=Input.mouse.x>=px&&Input.mouse.x<=px+pw&&Input.mouse.y>=py&&Input.mouse.y<=py+ph;
+    ctx.fillStyle=pHover?'rgba(60,60,80,0.95)':'rgba(18,18,30,0.92)';
+    ctx.fillRect(px,py,pw,ph);
+    ctx.strokeStyle=PaceControl.getColor();ctx.lineWidth=2;ctx.strokeRect(px,py,pw,ph);
+    ctx.font=`bold ${Math.round(11*s)}px monospace`;ctx.textAlign='center';
+    outlineText(ctx,PaceControl.getLabel(),px+pw/2,py+Math.round(16*s),PaceControl.getColor());
+    if(pHover&&Input.mouse.clicked){PaceControl.toggle();Input.mouse.clicked=false}
   }
 
   // Boss HP bar
@@ -4281,6 +4330,7 @@ function startNewRun(){
   ViewerChat.messages=[];ViewerChat.viewerCount=1000;ViewerChat.killStreak=0;
   DungeonAI.reset();
   ShowDirector.reset();
+  PaceControl.reset();
   MetaProgress.startRun();
   Telemetry.startRun();
   FloorManager.init(1);generateTilemap();Spawner.reset();
@@ -4315,16 +4365,17 @@ const Game = {
     switch(this.state){
       case'paused':break;
       case'playing':
-        Telemetry.update(dt);
-        ShowDirector.update(dt);
-        player.update(dt);Camera.follow(player,dt);
-        for(const w of player.weapons)w.update(dt,player);
-        updateOrbitals(dt,player);updateCompanions(dt,player);
-        for(const e of enemies){if(e.alive)e.update(dt,player)}
-        Spawner.update(dt);FloorManager.update(dt);SpatialGrid.buildFromEnemies();
-        updateProjectiles(dt);updatePickups(dt);
-        checkEnemyPlayerCollision(dt);despawnFarEnemies();
-        updateParticles(dt);updateVisuals(dt);ViewerChat.update(dt);DungeonAI.update(dt);AmbientFX.update(dt);updateBossWarning(dt);
+        const simDt=Math.min(dt*PaceControl.multiplier,0.09);
+        Telemetry.update(simDt);
+        ShowDirector.update(simDt);
+        player.update(simDt);Camera.follow(player,simDt);
+        for(const w of player.weapons)w.update(simDt,player);
+        updateOrbitals(simDt,player);updateCompanions(simDt,player);
+        for(const e of enemies){if(e.alive)e.update(simDt,player)}
+        Spawner.update(simDt);FloorManager.update(simDt);SpatialGrid.buildFromEnemies();
+        updateProjectiles(simDt);updatePickups(simDt);
+        checkEnemyPlayerCollision(simDt);despawnFarEnemies();
+        updateParticles(simDt);updateVisuals(simDt);ViewerChat.update(simDt);DungeonAI.update(simDt);AmbientFX.update(simDt);updateBossWarning(simDt);
         if(lootPopup)lootPopup.timer-=dt;
         if(pendingLevelUps>0&&this.state==='playing'){levelUpChoices=generateLevelUpChoices();if(levelUpChoices.length>0)this.changeState('levelUp');else pendingLevelUps=0}
         break;
