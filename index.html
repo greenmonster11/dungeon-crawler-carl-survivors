@@ -1525,6 +1525,7 @@ const Input = {
 
 const PaceControl = {
   multiplier: 1,
+  autoBoostEnabled: true,
   timeAt2x: 0,
   toggle() {
     this.multiplier = this.multiplier === 1 ? 2 : 1;
@@ -1533,15 +1534,23 @@ const PaceControl = {
   },
   reset() {
     this.multiplier = 1;
+    this.autoBoostEnabled = true;
     this.timeAt2x = 0;
   },
+  effectiveMultiplier() {
+    if (this.multiplier === 2) return 2;
+    if (this.autoBoostEnabled && isMobile && FloorManager.floorTimer < 14 && enemies.length < 10) return 1.6;
+    return 1;
+  },
   track(dt) {
-    if (this.multiplier === 2) this.timeAt2x += dt;
+    if (this.effectiveMultiplier() > 1) this.timeAt2x += dt;
   },
   getLabel() {
+    if (this.multiplier === 1 && this.effectiveMultiplier() > 1) return 'PACE AUTO';
     return this.multiplier === 2 ? 'PACE 2x' : 'PACE 1x';
   },
   getColor() {
+    if (this.multiplier === 1 && this.effectiveMultiplier() > 1) return '#66ffcc';
     return this.multiplier === 2 ? '#44ffaa' : '#88aaff';
   }
 };
@@ -1562,7 +1571,7 @@ function isFullscreen(){return!!(document.fullscreenElement||document.webkitFull
 // === CAMERA ===
 const Camera = {
   x:0,y:0,shake:0,shakeX:0,shakeY:0,
-  follow(e,dt){const tx=e.x-W/2,ty=e.y-H/2;this.x+=(tx-this.x)*6*dt;this.y+=(ty-this.y)*6*dt;this.x=clamp(this.x,0,CONFIG.FLOOR_WIDTH-W);this.y=clamp(this.y,0,CONFIG.FLOOR_HEIGHT-H);if(this.shake>0){this.shakeX=(Math.random()-0.5)*this.shake*2;this.shakeY=(Math.random()-0.5)*this.shake*2;this.shake*=0.9;if(this.shake<0.5)this.shake=0}else{this.shakeX=0;this.shakeY=0}},
+  follow(e,dt){const tx=e.x-W/2,ty=e.y-H/2;this.x+=(tx-this.x)*6*dt;this.y+=(ty-this.y)*6*dt;this.x=clamp(this.x,0,CONFIG.FLOOR_WIDTH-W);this.y=clamp(this.y,0,CONFIG.FLOOR_HEIGHT-H);if(this.shake>0){const amp=isMobile?0.55:1;this.shakeX=(Math.random()-0.5)*this.shake*2*amp;this.shakeY=(Math.random()-0.5)*this.shake*2*amp;this.shake*=0.9;if(this.shake<0.5)this.shake=0}else{this.shakeX=0;this.shakeY=0}},
   apply(c){c.translate(-this.x+this.shakeX,-this.y+this.shakeY)},
   isVisible(x,y,m=64){return x>this.x-m&&x<this.x+W+m&&y>this.y-m&&y<this.y+H+m}
 };
@@ -1570,12 +1579,12 @@ const Camera = {
 // === PARTICLE SYSTEM ===
 let particles = [];
 function spawnParticle(x,y,opts={}){
-  const maxParticles=isMobile?260:420;
+  const maxParticles=isMobile?150:420;
   if(particles.length>=maxParticles)return;
   particles.push({x,y,vx:opts.vx||(Math.random()-0.5)*100,vy:opts.vy||(Math.random()-0.5)*100,life:opts.life||0.5,maxLife:opts.life||0.5,size:opts.size||3,color:opts.color||'#ffffff',type:opts.type||'spark',text:opts.text||null,gravity:opts.gravity||0,shrink:opts.shrink!==undefined?opts.shrink:true})
 }
 function spawnDamageNumber(x,y,amount,color='#ffffff'){spawnParticle(x,y,{vx:(Math.random()-0.5)*40,vy:-80-Math.random()*40,life:0.8,type:'text',text:typeof amount==='string'?amount:Math.floor(amount).toString(),color,size:amount>20?20:15,gravity:60,shrink:false})}
-function spawnExplosion(x,y,count,color){for(let i=0;i<count;i++){const a=Math.random()*Math.PI*2,s=50+Math.random()*150;spawnParticle(x,y,{vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0.3+Math.random()*0.3,size:2+Math.random()*3,color})}}
+function spawnExplosion(x,y,count,color){const c=isMobile?Math.max(3,Math.floor(count*0.55)):count;for(let i=0;i<c;i++){const a=Math.random()*Math.PI*2,s=50+Math.random()*150;spawnParticle(x,y,{vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:0.3+Math.random()*0.3,size:2+Math.random()*3,color})}}
 function spawnXPBurst(x,y){for(let i=0;i<5;i++){const a=Math.random()*Math.PI*2;spawnParticle(x,y,{vx:Math.cos(a)*60,vy:Math.sin(a)*60,life:0.3,size:2,color:CONFIG.COLORS.XP_GEM})}}
 function spawnDeathPop(x,y,w,h,color){
   // Expanding pop effect for enemy death
@@ -1588,8 +1597,8 @@ const AmbientFX={
   update(dt){
     this.timer-=dt;
     if(this.timer<=0&&FloorManager.currentFloor){
-      this.timer=isMobile?0.24:0.15;
-      if(isMobile&&this.particles.length>90)return;
+      this.timer=isMobile?0.34:0.15;
+      if(isMobile&&this.particles.length>55)return;
       const fn=FloorManager.floorNumber;
       const cx=Camera.x+Math.random()*W,cy=Camera.y+Math.random()*H;
       if(fn===3)this.particles.push({x:cx,y:cy,vy:20+Math.random()*30,vx:(Math.random()-0.5)*15,life:3,maxLife:3,size:2,color:'#ddeeff',type:'snow'});
@@ -3238,13 +3247,15 @@ const Spawner = {
   getSpawnRate(){
     let rate=Math.max(0.3,1.8-this.gameTime*0.008);
     // Early-floor pacing boost so starts don't feel empty.
-    if(FloorManager.floorTimer<20)rate*=0.72;
-    if(PaceControl.multiplier>1)rate*=0.75;
+    if(FloorManager.floorTimer<20)rate*=0.68;
+    if(isMobile&&FloorManager.floorTimer<12&&enemies.length<8)rate*=0.82;
+    if(PaceControl.effectiveMultiplier()>1)rate*=0.75;
     return Math.max(0.2,rate);
   },
   getSpawnCount(){
     let count=Math.min(6,1+Math.floor(this.gameTime/25));
     if(FloorManager.floorTimer<20)count=Math.min(7,count+1);
+    if(isMobile&&FloorManager.floorTimer<12&&count<4)count++;
     return count;
   },
   getDifficultyMult(){return FloorManager.currentFloor.difficultyMult*(1+this.gameTime*0.002+this.currentWave*0.08)},
@@ -3303,7 +3314,7 @@ function updateProjectiles(dt){
 }
 function drawProjectiles(ctx){for(const p of projectiles){if(!Camera.isVisible(p.x,p.y))continue;
   // Trail afterimage
-  ctx.globalAlpha=0.15;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x-p.vx*0.02,p.y-p.vy*0.02,p.size/2,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+  if(!isMobile){ctx.globalAlpha=0.15;ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x-p.vx*0.02,p.y-p.vy*0.02,p.size/2,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;}
   if(p.isSheep){if(SpriteCache.has('sheep')){SpriteCache.draw(ctx,'sheep',p.x,p.y,2)}else{ctx.fillStyle='#ffffff';ctx.fillRect(p.x-7,p.y-5,14,10);ctx.fillStyle='#ff4444';ctx.fillRect(p.x-2,p.y+5,4,3)}continue}
   if(p.homing&&SpriteCache.has('fireball')){SpriteCache.draw(ctx,'fireball',p.x,p.y,1.5);continue}
   ctx.fillStyle=p.color;ctx.beginPath();ctx.arc(p.x,p.y,p.size/2,0,Math.PI*2);ctx.fill();ctx.globalAlpha=0.3;ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1}}
@@ -4525,7 +4536,7 @@ const Game = {
       case'paused':break;
       case'playing':
         PaceControl.track(dt);
-        const simDt=Math.min(dt*PaceControl.multiplier,0.09);
+        const simDt=Math.min(dt*PaceControl.effectiveMultiplier(),0.09);
         Telemetry.update(simDt);
         ShowDirector.update(simDt);
         player.update(simDt);Camera.follow(player,simDt);
